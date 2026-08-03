@@ -53,7 +53,7 @@
               <input id="adm-query" placeholder="Например: BuShiZm">
             </div>
             <button class="btn btn-sm" id="adm-find" type="button">Найти</button>
-            <span class="error-msg" id="adm-find-status"></span>
+            <span class="error-msg" id="adm-find-status" style="display:block;margin-top:10px"></span>
 
             <div id="adm-found" style="display:none;margin-top:14px">
               <div class="adm-found-user">
@@ -69,7 +69,7 @@
                 <button class="os-tab" data-lv="2" type="button">Создатель</button>
               </div>
               <button class="btn btn-sm btn-primary" id="adm-set" type="button">Применить уровень</button>
-              <span class="error-msg" id="adm-set-status"></span>
+              <span class="error-msg" id="adm-set-status" style="display:block;margin-top:10px"></span>
             </div>
           </div>
         </div>
@@ -125,7 +125,7 @@
       }
 
       const myLevel = (DB && DB.configured && DB.adminLevel)
-        ? await DB.adminLevel(user.id)
+        ? await DB.adminLevel(user.id, user.name)
         : 0;
       const isCreator = myLevel >= 2;
       const isAdmin = myLevel >= 1;

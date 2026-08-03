@@ -512,10 +512,16 @@
     // При изменении уровней возвращают { ok, error }.
 
     // Уровень админа текущего авторизованного пользователя (0/1/2)
-    async adminLevel(userId) {
+    // Уровень админа текущего авторизованного пользователя (0/1/2).
+    // Если по id не нашлось (у старых аккаунтов в localStorage id может
+    // не совпадать с uuid из Supabase) — пробуем найти по имени.
+    async adminLevel(userId, userName) {
       if (!this.configured || !userId) return 0;
       const { data, error } = await client.from('profiles').select('admin_level').eq('id', userId).maybeSingle();
-      return (error || !data) ? 0 : Number(data.admin_level) || 0;
+      if (!error && data) return Number(data.admin_level) || 0;
+      if (!userName) return 0;
+      const found = await this.adminFindUser(userName);
+      return found ? found.adminLevel : 0;
     },
 
     // Найти профиль по нику или uuid — для выдачи админки.

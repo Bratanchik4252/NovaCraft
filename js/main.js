@@ -113,13 +113,18 @@ function buildHeader() {
   const user = getCurrentUser();
   // Вкладка «Личный кабинет» видна только авторизованным
   const tabs = getNavTabs().filter(t => !(t.id === 'cabinet' && !user));
-  const currentPage = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  // С Vercel cleanUrls адрес в браузере без «.html», а href вкладок с «.html» —
+  // сравниваем нормализованные имена, чтобы активная вкладка всегда находилась.
+  const normPage = p => String(p).split('/').pop().replace(/\.html$/i, '').toLowerCase();
+  const currentPage = normPage(location.pathname) || 'index';
 
   const navLinks = tabs
-    .map(t =>
-      `<a class="nav-link${t.href === currentPage || (t.activeOn && t.activeOn.includes(currentPage)) ? ' active' : ''}" data-tab="${t.id}"
-         href="${t.href}">${esc(t.label)}</a>`
-    )
+    .map(t => {
+      const isActive = normPage(t.href) === currentPage
+        || (t.activeOn && t.activeOn.some(p => normPage(p) === currentPage));
+      return `<a class="nav-link${isActive ? ' active' : ''}" data-tab="${t.id}"
+         href="${t.href}">${esc(t.label)}</a>`;
+    })
     .join('');
 
   const userCoins = user && Array.isArray(user.balance)
@@ -129,7 +134,7 @@ function buildHeader() {
 
   // Цвет привилегии красит ник в пилюле и в микро-меню
   const nickColor = user ? privilegeColorOf(user) : null;
-  const nickStyle = nickColor ? `style="color:${nickColor};text-shadow:0 0 12px ${nickColor}"` : '';
+  const nickStyle = nickColor ? `style="color:${nickColor}"` : '';
   const topPriv = user ? topPrivilegeOf(user) : null;
 
   // Колокольчик уведомлений (только для авторизованных)
@@ -285,7 +290,7 @@ function buildHeader() {
     }
   }
 
-  const activeTab = tabs.find(t => t.href === currentPage || (t.activeOn && t.activeOn.includes(currentPage)));
+  const activeTab = tabs.find(t => normPage(t.href) === currentPage || (t.activeOn && t.activeOn.some(p => normPage(p) === currentPage)));
   const activeBtn = activeTab ? $(`.nav-link[data-tab="${activeTab.id}"]`, host) : null;
   if (activeBtn) {
     moveSlider(activeBtn, false);
@@ -366,7 +371,7 @@ function buildHeader() {
     (async () => {
       let level = 0;
       if (window.DB && DB.configured && DB.adminLevel) {
-        try { level = await DB.adminLevel(user.id); } catch (e) {}
+        try { level = await DB.adminLevel(user.id, user.name); } catch (e) {}
       }
       if (level >= 1) adminLink.style.display = '';
     })();

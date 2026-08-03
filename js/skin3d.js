@@ -11,7 +11,7 @@
 
 (function () {
   // Скин по умолчанию для модели (когда у пользователя нет своего)
-  const DEFAULT_SKIN = 'img/skins/steve_original.png';
+  const DEFAULT_SKIN = 'img/skins/steve_original.png?v=2';
 
   // ---------- Дефолтный скин (классический Steve, 64x64) ----------
   function makeDefaultSkin() {
