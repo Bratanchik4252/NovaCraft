@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Префиксы — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Префиксы</h1>
+      <p>Красочный ник на сервере и в чате. Префиксы появятся вместе с бэкендом.</p>
+    </div>
+
+    <!-- TODO: префиксы придут с бэкенда, создание — в админ-панели -->
+    <div class="pfx-wrap anim-fade-up delay-1">
+      <div class="seg pfx-tabs">
+        <button class="os-tab active" data-tab="open" type="button">Доступные</button>
+        <button class="os-tab" data-tab="closed" type="button">Закрытые</button>
+      </div>
+
+      <div id="pfx-open">
+        <div class="pfx-empty">
+          <b>Доступных префиксов пока нет</b>
+          <p>Администрация создаст префиксы после запуска физического сервера. Следи за новостями!</p>
+        </div>
+      </div>
+
+      <div id="pfx-closed" style="display:none">
+        <div class="pfx-empty">
+          <b>Закрытых префиксов пока нет</b>
+          <p>Сюда попадут префиксы за особые заслуги. Они станут видны, когда появятся.</p>
+        </div>
+      </div>
+
+      <div class="pfx-note">
+        <strong>Как это работает.</strong> Выбери префикс — и он появится рядом с твоим ником в чате
+        и на сервере. Один активный префикс за раз. Менять можно в любой момент.
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      $$('.pfx-tabs .os-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          $$('.pfx-tabs .os-tab').forEach(b => b.classList.toggle('active', b === btn));
+          const open = btn.dataset.tab === 'open';
+          $('#pfx-open').style.display = open ? '' : 'none';
+          $('#pfx-closed').style.display = open ? 'none' : '';
+        });
+      });
+    });
+  </script>
+</body>
+</html>

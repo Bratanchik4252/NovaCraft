@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сервера — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Сервера проекта</h1>
+      <p>Выбери версию и посмотри сервера на ней. Онлайн обновляется в реальном времени.</p>
+    </div>
+
+    <div style="max-width:900px;margin:0 auto" id="servers-list"></div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    // ---------- Данные серверов (заглушки) ----------
+    // TODO: получать список серверов из бэкенда (/api/servers)
+    // У каждого сервера можно задать массив модов — он раскроется по клику.
+    const VERSIONS = ['1.12.2'];
+    const SERVERS = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const host = document.getElementById('servers-list');
+
+      // Онлайн — случайное число 0-100 (заглушка). TODO: реальный онлайн с бэкенда
+      SERVERS.forEach(s => { s.online = Math.floor(Math.random() * 101); });
+
+      // Свернуть/развернуть группу версий
+      function toggleGroup(groupEl) {
+        const head = groupEl.querySelector('.version-header');
+        const wasOpen = groupEl.classList.contains('open');
+        head.classList.toggle('open', !wasOpen);
+        groupEl.classList.toggle('open', !wasOpen);
+      }
+
+      // Свернуть/развернуть карточку сервера (показать описание + моды)
+      function toggleServer(serverEl) {
+        const head = serverEl.querySelector('.server-head');
+        const wasOpen = serverEl.classList.contains('open');
+        head.classList.toggle('open', !wasOpen);
+        serverEl.classList.toggle('open', !wasOpen);
+      }
+
+      function renderMods(s) {
+        if (!s.mods || !s.mods.length) return '';
+        return `
+          <div class="mods-block">
+            <div class="mods-title">Полный список модов (${s.mods.length})</div>
+            <div class="mods-grid">
+              ${s.mods.map(m => `<span class="mod-chip">${MC.esc(m)}</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      function render() {
+        host.innerHTML = VERSIONS.map(ver => {
+          const list = SERVERS.filter(s => s.version === ver);
+          return `
+            <div class="version-group glass">
+              <button class="version-header" type="button">
+                <span class="chevron">&#9662;</span>
+                <span>Версия ${MC.esc(ver)}</span>
+                <span class="version-count">${list.length} ${plural(list.length)}</span>
+              </button>
+              <div class="version-body">
+                ${list.length === 0
+                  ? '<div class="version-empty text-muted">Пока нет серверов на этой версии</div>'
+                  : list.map(s => `
+                    <article class="server">
+                      <button class="server-head" type="button">
+                        <span class="chevron">&#9656;</span>
+                        <strong>${MC.esc(s.name)}</strong>
+                        <span class="badge ${s.online > 0 ? 'online' : 'offline'}" data-server="${s.id}">
+                          <span class="dot"></span><span class="server-online" data-server="${s.id}">${s.online}</span>
+                        </span>
+                      </button>
+                      <div class="server-body">
+                        <p class="desc">${MC.esc(s.desc || '')}</p>
+                        ${renderMods(s)}
+                        <div class="meta">
+                          <span>Версия: <strong>${MC.esc(s.version)}</strong></span>
+                          <span>Последний вайп: <strong>${MC.esc(s.wipe || '—')}</strong></span>
+                          <span>Онлайн: <strong class="server-online" data-server="${s.id}">${s.online}</strong></span>
+                        </div>
+                        <a href="shop.html?server=${s.id}" class="btn btn-sm">Магазин сервера</a>
+                      </div>
+                    </article>
+                  `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Раскрытие версий и серверов
+        $$('.version-group', host).forEach(g => {
+          g.querySelector('.version-header').addEventListener('click', () => toggleGroup(g));
+        });
+        $$('.server', host).forEach(sr => {
+          sr.querySelector('.server-head').addEventListener('click', () => toggleServer(sr));
+        });
+      }
+
+      function plural(n) {
+        const m10 = n % 10, m100 = n % 100;
+        if (m10 === 1 && m100 !== 11) return 'сервер';
+        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'сервера';
+        return 'серверов';
+      }
+
+      // Обновление онлайна раз в 10 секунд без пересборки (имитация)
+      // TODO: подписка на WebSocket/SSE с бэкенда
+      setInterval(() => {
+        SERVERS.forEach(s => { s.online = Math.floor(Math.random() * 101); });
+        $$('.server-online[data-server]', host).forEach(el => {
+          const s = SERVERS.find(x => String(x.id) === el.dataset.server);
+          if (!s) return;
+          el.textContent = s.online;
+          // Красим бейдж онлайн/офлайн
+          const badge = el.closest('.badge');
+          if (badge) badge.classList.toggle('online', s.online > 0);
+        });
+      }, 10000);
+
+      render();
+
+      // Открываем API для будущей админки и тестов
+      window.serversApp = { VERSIONS, SERVERS, render };
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профиль игрока — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <!-- Шапка профиля: банер + аватар + имя + действия -->
+    <div class="player-hero anim-fade-up" id="player-hero" style="max-width:1000px;margin:0 auto">
+      <div class="player-banner" id="player-banner"></div>
+      <div class="player-hero-inner">
+        <img class="player-avatar" id="player-avatar" alt="Аватар">
+        <div>
+          <h1 class="text-glow" id="player-name" style="font-size:42px">—</h1>
+          <div id="player-status" style="margin-top:8px"></div>
+          <p class="text-muted" id="player-desc" style="font-size:15px;margin-top:10px;max-width:520px"></p>
+          <div class="player-actions">
+            <button class="heart-btn" id="player-heart" type="button"><span class="hb-icon">&#9829;</span> <span id="player-heart-count">0</span></button>
+            <span class="views-count">&#128065; <span id="player-views">1</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="player-content" style="display:flex;flex-direction:column;gap:18px;max-width:1000px;margin:24px auto 0">
+
+      <!-- Привилегия -->
+      <div class="glass cab-card" id="player-priv-block">
+        <h4>Привилегия</h4>
+        <div id="player-priv"></div>
+      </div>
+
+      <!-- График онлайна + статистика -->
+      <div class="player-mid">
+        <div class="glass cab-card chart-compact">
+          <h4>Онлайн</h4>
+          <p class="text-muted" style="font-size:14px;margin:6px 0 14px">Онлайн по дням. Наведи на точку, чтобы увидеть значение.</p>
+          <div class="seg chart-range" id="chart-range">
+            <button class="os-tab active" data-range="week" type="button">1 неделя</button>
+            <button class="os-tab" data-range="month" type="button">1 месяц</button>
+            <button class="os-tab" data-range="3m" type="button">3 месяца</button>
+            <button class="os-tab" data-range="6m" type="button">6 месяцев</button>
+            <button class="os-tab" data-range="all" type="button">Всё время</button>
+          </div>
+          <div class="chart-wrap" style="margin-top:16px">
+            <canvas class="chart-canvas" id="player-chart" width="880" height="260"></canvas>
+            <div class="chart-tip" id="chart-tip"></div>
+            <div class="pc-empty" id="chart-empty" style="display:none">Нет данных об онлайне</div>
+          </div>
+        </div>
+
+        <div class="glass cab-card">
+          <h4>Статистика</h4>
+          <p class="text-muted" style="font-size:14px;margin:6px 0 14px">Активность и монеты игрока.</p>
+          <div class="player-stats-card" id="player-stats">
+            <div class="stat-row">
+              <span class="sr-label">Вскопано блоков</span>
+              <span class="sr-value" id="st-blocks">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="sr-label">Монет получено</span>
+              <span class="sr-value" id="st-earned">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="sr-label">Монет потрачено</span>
+              <span class="sr-value" id="st-spent">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Комментарии -->
+      <div class="glass cab-card pc-section" id="pc-section">
+        <h4>Комментарии</h4>
+        <p class="text-muted" style="font-size:14px;margin:6px 0 14px">Оставь отзыв или задай вопрос игроку.</p>
+        <div class="pc-body" id="pc-body">
+          <div class="pc-form">
+            <textarea id="pc-text" placeholder="Ваш комментарий..." maxlength="500"></textarea>
+            <div class="pc-form-row">
+              <button class="btn btn-primary" id="pc-send" type="button">Отправить</button>
+              <span class="pc-as" id="pc-as"></span>
+              <span class="pc-cd" id="pc-cd"></span>
+              <span class="pc-msg" id="pc-msg"></span>
+            </div>
+          </div>
+          <div class="pc-list" id="pc-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Игрок не найден -->
+    <div class="player-notfound glass" id="player-notfound" style="display:none;max-width:1000px;margin:24px auto 0">
+      <h2 style="margin-bottom:8px">Игрок не найден</h2>
+      <p>Такого никнейма нет на проекте.</p>
+      <a class="btn btn-sm" href="players.html" style="margin-top:18px">Поиск игроков</a>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/players-data.js"></script>
+  <script src="js/player.js"></script>
+</body>
+</html>

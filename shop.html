@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Магазин — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Магазин</h1>
+      <p>Привилегии и предметы для серверов проекта.</p>
+    </div>
+
+    <div style="max-width:1000px;margin:0 auto">
+      <div class="text-muted text-center" id="shop-server-name" style="margin-bottom:22px;font-size:16px"></div>
+
+      <div class="os-tabs" id="shop-cats" style="margin-bottom:28px">
+        <button class="os-tab active" data-cat="priv" type="button">Привилегии</button>
+        <button class="os-tab" data-cat="items" type="button">Предметы</button>
+      </div>
+
+      <div class="grid-2" id="shop-grid"></div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <!-- Модалка покупки -->
+  <div class="modal-overlay" id="buy-modal">
+    <div class="modal" style="position:relative;max-width:480px">
+      <h3 id="buy-title" style="margin-bottom:8px">Покупка</h3>
+      <div id="buy-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // ---------- Товары магазина (заглушки) ----------
+    // TODO: товары с бэкенда + интеграция с платёжной системой
+    const SERVERS = [
+      { id: 1, name: 'Мирный' },
+      { id: 2, name: 'Анархия' },
+      { id: 3, name: 'Скайблок' },
+      { id: 4, name: 'Техномагия' },
+      { id: 5, name: 'Кровавый мир' },
+      { id: 6, name: 'Выживание' },
+    ];
+    // rub — цена за 1 месяц. Множители сроков: 1/3/6/12 мес / навсегда
+    const TERMS = [
+      { id: '1m',   label: '1 мес',     months: 1,            mult: 1 },
+      { id: '3m',   label: '3 мес',     months: 3,            mult: 3 },
+      { id: '6m',   label: '6 мес',     months: 6,            mult: 6 },
+      { id: '12m',  label: '12 мес',    months: 12,           mult: 10 },
+      { id: 'forever', label: 'Навсегда', months: 'forever',  mult: 18 },
+    ];
+    const SHOP = {
+      priv: [
+        { name: 'VIP',        rub: 299,  features: ['Красивый префикс', 'Набор при входе раз в сутки', 'Доступ к /kit vip'] },
+        { name: 'VIP+',       rub: 599,  features: ['Всё из VIP', 'Больше приватных слотов', 'Цветной ник в чате'] },
+        { name: 'Голд',       rub: 999,  features: ['Золотой префикс', 'Свой цвет ника', 'Приоритет в очереди', 'Доступ к /kit gold'] },
+        { name: 'Дракон',     rub: 1999, features: ['Все возможности сервера', 'Летающий дракон на спине', 'Доступ к /kit dragon', 'Личная зона строительства'] },
+      ],
+      items: [
+        { name: 'Алмазный меч',     rub: 199, coins: 2000, desc: 'Острота V, отдача II' },
+        { name: 'Алмазная кирка',   rub: 249, coins: 2500, desc: 'Эффективность V, удача III' },
+        { name: 'Сет алмазной брони', rub: 699, coins: 7000, desc: 'Полный комплект с защитой IV' },
+        { name: 'Зелье здоровья',   rub: 49,  coins: 500,  desc: 'Зелье мгновенного лечения II' },
+        { name: 'Сет 12 зелий силы', rub: 149, coins: 1500, desc: 'Двенадцать зелий силы II' },
+      ],
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const grid = document.getElementById('shop-grid');
+      const serverName = document.getElementById('shop-server-name');
+      const serverId = new URLSearchParams(location.search).get('server') || '1';
+      const currentServer = SERVERS.find(s => String(s.id) === serverId) || SERVERS[0];
+      serverName.textContent = 'Сервер «' + currentServer.name + '»';
+
+      let currentCat = 'priv';
+      const tabs = document.querySelectorAll('#shop-cats .os-tab');
+
+      function render() {
+        const items = SHOP[currentCat];
+        grid.innerHTML = items.map((it, idx) => `
+          <article class="glass card reveal">
+            <h3>${MC.esc(it.name)}</h3>
+            <p class="text-muted" style="font-size:14px;margin:10px 0 16px">${MC.esc(it.desc || '')}</p>
+            ${currentCat === 'priv'
+              ? `<div style="font-size:15px"><span class="text-glow" style="font-weight:800">от ${it.rub} &#8381;/мес</span></div>`
+              : `<div style="display:flex;justify-content:space-between;align-items:center;font-size:15px">
+                   <span class="text-glow" style="font-weight:800">${it.rub} &#8381;</span>
+                   <span class="text-muted">или ${it.coins} монет</span>
+                 </div>`}
+            <button class="btn btn-primary btn-sm buy-btn" data-cat="${currentCat}" data-idx="${idx}"
+              style="width:100%;margin-top:16px">Купить</button>
+          </article>
+        `).join('');
+
+        $$('.buy-btn', grid).forEach(btn => {
+          btn.addEventListener('click', () => openBuy(currentCat, Number(btn.dataset.idx)));
+        });
+      }
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentCat = tab.dataset.cat;
+          render();
+        });
+      });
+
+      // ======================================================================
+      //  ПОКУПКА
+      // ======================================================================
+      const modal = document.getElementById('buy-modal');
+      const body = document.getElementById('buy-body');
+
+      function closeModal() { modal.classList.remove('open'); }
+      modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+      function openBuy(cat, idx) {
+        if (!window.Auth) return closeModal();
+        if (!Auth.isAuthed()) {
+          location.href = 'auth.html?redirect=' + encodeURIComponent('shop.html?server=' + serverId);
+          return;
+        }
+        cat === 'priv' ? openPriv(idx) : openItem(idx);
+      }
+
+      // ---------- Привилегия: срок + сервер + возможности ----------
+      function openPriv(idx) {
+        const priv = SHOP.priv[idx];
+        let term = TERMS[0];
+        let server = currentServer;
+
+        function price() {
+          return priv.rub * term.mult;
+        }
+
+        function rerender() {
+          body.innerHTML = `
+            <p class="priv-name" style="font-size:18px;font-weight:800">${MC.esc(priv.name)}</p>
+            <ul class="priv-features">
+              ${priv.features.map(f => `<li>${MC.esc(f)}</li>`).join('')}
+            </ul>
+
+            <label class="text-muted" style="font-size:13px;font-weight:600">Срок</label>
+            <div class="term-row">
+              ${TERMS.map(t => `<button class="os-tab ${t.id === term.id ? 'active' : ''}" data-term="${t.id}" type="button">${t.label}</button>`).join('')}
+            </div>
+
+            <label class="text-muted" style="font-size:13px;font-weight:600">Сервер</label>
+            <select class="shop-select" id="buy-server">
+              ${SERVERS.map(s => `<option value="${s.id}" ${s.id === server.id ? 'selected' : ''}>${MC.esc(s.name)}</option>`).join('')}
+            </select>
+
+            <div class="shop-price" id="buy-price">${price()} &#8381;</div>
+            <span class="error-msg" id="buy-error"></span>
+            <button class="btn btn-primary" id="buy-confirm" type="button" style="width:100%">Купить за ${price()} &#8381;</button>
+          `;
+
+          body.querySelectorAll('[data-term]').forEach(b => {
+            b.addEventListener('click', () => {
+              body.querySelectorAll('[data-term]').forEach(x => x.classList.remove('active'));
+              b.classList.add('active');
+              term = TERMS.find(t => t.id === b.dataset.term);
+              document.getElementById('buy-price').textContent = price() + ' ₽';
+              document.getElementById('buy-confirm').textContent = 'Купить за ' + price() + ' ₽';
+            });
+          });
+          document.getElementById('buy-server').addEventListener('change', e => {
+            server = SERVERS.find(s => String(s.id) === e.target.value) || SERVERS[0];
+          });
+          document.getElementById('buy-confirm').addEventListener('click', () => confirmPriv(priv, term, server));
+        }
+
+        rerender();
+        modal.classList.add('open');
+      }
+
+      function confirmPriv(priv, term, server) {
+        const err = document.getElementById('buy-error');
+        const u = Auth.getCurrentUser();
+        const cost = priv.rub * term.mult;
+        if ((Number(u.balanceRub) || 0) < cost) {
+          err.textContent = 'Недостаточно рублей на счёте. Пополни счёт, чтобы купить.';
+          return;
+        }
+        Auth.updateCurrentUser(x => {
+          x.balanceRub = Number(x.balanceRub) - cost;
+          Auth.grantPrivilege(x, priv.name, server.name, term.months);
+          Auth.addTransaction(x, 'out', 'Привилегия ' + priv.name, server.name, cost, 'rub');
+        });
+        closeModal();
+        const nu = Auth.getCurrentUser();
+        if (window.Notif) window.Notif.push(nu.id, 'spend', 'Покупка на сайте',
+          'Вы потратили ' + cost + ' ₽ на привилегию ' + priv.name + ' на сервер «' + server.name + '».', 'profile.html');
+        alert('Привилегия «' + priv.name + '» куплена на сервер «' + server.name + '»!');
+      }
+
+      // ---------- Предмет: выбор валюты ----------
+      function openItem(idx) {
+        const item = SHOP.items[idx];
+        let currency = 'rub';
+        let server = currentServer;
+
+        function rerender() {
+          body.innerHTML = `
+            <p style="font-weight:800;font-size:18px">${MC.esc(item.name)}</p>
+            <p class="text-muted" style="font-size:14px;margin:6px 0 14px">${MC.esc(item.desc)}</p>
+
+            <label class="text-muted" style="font-size:13px;font-weight:600">Валюта</label>
+            <div class="currency-row">
+              <button class="os-tab ${currency === 'rub' ? 'active' : ''}" data-cur="rub" type="button">${item.rub} &#8381;</button>
+              <button class="os-tab ${currency === 'coins' ? 'active' : ''}" data-cur="coins" type="button">${item.coins} монет</button>
+            </div>
+
+            <label class="text-muted" style="font-size:13px;font-weight:600">Сервер</label>
+            <select class="shop-select" id="buy-server">
+              ${SERVERS.map(s => `<option value="${s.id}" ${s.id === server.id ? 'selected' : ''}>${MC.esc(s.name)}</option>`).join('')}
+            </select>
+
+            <span class="error-msg" id="buy-error"></span>
+            <button class="btn btn-primary" id="buy-confirm" type="button" style="width:100%;margin-top:8px">Купить</button>
+          `;
+
+          body.querySelectorAll('[data-cur]').forEach(b => {
+            b.addEventListener('click', () => {
+              body.querySelectorAll('[data-cur]').forEach(x => x.classList.remove('active'));
+              b.classList.add('active');
+              currency = b.dataset.cur;
+            });
+          });
+          document.getElementById('buy-server').addEventListener('change', e => {
+            server = SERVERS.find(s => String(s.id) === e.target.value) || SERVERS[0];
+          });
+          document.getElementById('buy-confirm').addEventListener('click', () => confirmItem(item, currency, server));
+        }
+
+        rerender();
+        modal.classList.add('open');
+      }
+
+      function confirmItem(item, currency, server) {
+        const err = document.getElementById('buy-error');
+        const u = Auth.getCurrentUser();
+        let notifType = 'spend';
+        let notifBody = '';
+        if (currency === 'rub') {
+          const cost = item.rub;
+          if ((Number(u.balanceRub) || 0) < cost) {
+            err.textContent = 'Недостаточно рублей на счёте.';
+            return;
+          }
+          Auth.updateCurrentUser(x => {
+            x.balanceRub = Number(x.balanceRub) - cost;
+            Auth.addTransaction(x, 'out', 'Предмет: ' + item.name, server.name, cost, 'rub');
+          });
+          notifBody = 'Вы потратили ' + cost + ' ₽ на «' + item.name + '» на сервер «' + server.name + '».';
+        } else {
+          // Монеты списываются с баланса выбранного сервера
+          const entry = (u.balance || []).find(b => b.serverName === server.name);
+          const balance = entry ? Number(entry.balance) || 0 : 0;
+          if (balance < item.coins) {
+            err.textContent = 'Недостаточно монет на сервере «' + server.name + '».';
+            return;
+          }
+          Auth.updateCurrentUser(x => {
+            const e = (x.balance || []).find(b => b.serverName === server.name);
+            if (e) e.balance = balance - item.coins;
+            Auth.addTransaction(x, 'out', 'Предмет: ' + item.name, server.name, item.coins, 'coins');
+          });
+          notifType = 'withdraw';
+          notifBody = 'Вы вывели ' + item.coins + ' монет с сайта на сервер «' + server.name + '».';
+        }
+        closeModal();
+        const nu = Auth.getCurrentUser();
+        if (window.Notif) window.Notif.push(nu.id, notifType, notifType === 'withdraw' ? 'Вывод монет' : 'Покупка на сайте', notifBody, 'profile.html');
+        alert('Предмет «' + item.name + '» куплен на сервер «' + server.name + '»!');
+      }
+
+      render();
+    });
+  </script>
+</body>
+</html>

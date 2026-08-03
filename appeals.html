@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Обращения — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Обращения</h1>
+      <p>Список обращений к администрации: оспорить бан, задать вопрос или сообщить о проблеме.</p>
+    </div>
+
+    <!-- Тикеты. TODO: подключить реальный бэкенд /api/tickets -->
+    <div class="appeals-layout anim-fade-up delay-1">
+      <!-- Список тикетов -->
+      <aside class="glass appeal-list" id="appeal-list">
+        <button type="button" class="btn btn-primary" id="new-appeal" style="width:100%">+ Новое обращение</button>
+        <div id="appeal-groups"></div>
+      </aside>
+
+      <!-- Чат выбранного тикета -->
+      <div class="glass chat-wrap appeal-thread" id="thread">
+        <div class="chat-head">
+          <span id="thread-title">Обращения</span>
+          <span class="chat-status" id="thread-status"></span>
+        </div>
+
+        <div class="chat-body" id="chat-body" aria-live="polite"></div>
+
+        <div class="chat-input">
+          <input type="text" id="chat-input" placeholder="Напиши сообщение..." autocomplete="off" maxlength="500">
+          <button type="button" class="btn btn-primary" id="chat-send">Отправить</button>
+          <button type="button" class="btn" id="close-appeal" title="Закрыть обращение">Закрыть</button>
+        </div>
+        <div class="chat-notice" id="chat-notice">Сейчас это имитация — администратор отвечает автоматически. Подключим настоящие обращения вместе с бэкендом.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Модалка нового обращения -->
+  <div class="modal-overlay" id="new-appeal-modal" role="dialog" aria-modal="true" aria-labelledby="new-appeal-title">
+    <div class="modal" style="position:relative">
+      <h3 id="new-appeal-title" style="margin-bottom:6px">Новое обращение</h3>
+      <p class="text-muted" style="font-size:15px;margin-bottom:20px">Опиши проблему — администратор ответит в этом чате.</p>
+      <div class="field">
+        <label for="new-appeal-subject">Тема</label>
+        <input type="text" id="new-appeal-subject" placeholder="Оспаривание бана" maxlength="80" required>
+      </div>
+      <div class="field">
+        <label for="new-appeal-text">Сообщение</label>
+        <textarea id="new-appeal-text" rows="4" placeholder="Опиши ситуацию подробнее..." maxlength="500" required style="width:100%;min-height:110px;resize:vertical"></textarea>
+        <span class="error-msg" id="new-appeal-error"></span>
+      </div>
+      <button type="button" class="btn btn-primary" id="new-appeal-submit" style="width:100%">Создать обращение</button>
+    </div>
+  </div>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // ==========================================================================
+    // Тикеты обращений (заглушка, хранятся в localStorage).
+    // TODO: заменить на API бэкенда /api/tickets (физический сервер).
+    // ==========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      const KEY = 'mc:tickets';
+      const ADMIN = 'Администрация';
+
+      const listGroups = document.getElementById('appeal-groups');
+      const threadTitle = document.getElementById('thread-title');
+      const threadStatus = document.getElementById('thread-status');
+      const body = document.getElementById('chat-body');
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('chat-send');
+      const closeBtn = document.getElementById('close-appeal');
+      const notice = document.getElementById('chat-notice');
+      const newBtn = document.getElementById('new-appeal');
+
+      let tickets = load();
+      let currentId = null;
+      let busy = false;
+
+      function currentUser() {
+        return (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
+      }
+
+      function myTickets() {
+        const u = currentUser();
+        if (!u) return [];
+        return tickets.filter(t => t.owner === u.name);
+      }      function load() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return null;
+      }
+
+      function seed() {
+        // Демо-тикетов больше нет: обращения начинаются с чистого списка.
+        return [];
+      }
+
+      function save() {
+        try { localStorage.setItem(KEY, JSON.stringify(tickets)); } catch (e) {}
+      }
+
+      // ---------- XSS-безопасный вывод ----------
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function nowTime() {
+        return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      // ---------- Список тикетов ----------
+      function renderList() {
+        const u = currentUser();
+        const mine = u ? tickets.filter(t => t.owner === u.name) : [];
+        const open = mine.filter(t => t.status === 'open');
+        const closed = mine.filter(t => t.status === 'closed');
+        const item = t => `
+          <button class="appeal-item ${t.status === 'closed' ? 'closed' : ''} ${t.id === currentId ? 'active' : ''}" data-id="${t.id}" type="button">
+            <div class="ai-title">${esc(t.subject)}</div>
+            <div class="ai-meta">
+              <span>${t.status === 'open' ? 'В работе' : 'Закрыто'}</span>
+              <span>${esc(t.createdAt)}</span>
+            </div>
+          </button>
+        `;
+        listGroups.innerHTML =
+          (open.length ? '<div class="appeal-list-title">Активные</div>' + open.map(item).join('') : '') +
+          (closed.length ? '<div class="appeal-list-title">Закрытые</div>' + closed.map(item).join('') : '') +
+          (!mine.length ? '<div class="appeal-list-title">' + (u ? 'Обращений пока нет' : 'Войди в аккаунт, чтобы видеть свои обращения') + '</div>' : '');
+
+        listGroups.querySelectorAll('.appeal-item').forEach(el => {
+          el.addEventListener('click', () => openTicket(el.dataset.id));
+        });
+
+        // Одно активное обращение на человека: кнопку блокируем, если есть открытый тикет
+        newBtn.disabled = !u || open.length > 0;
+        newBtn.title = open.length > 0 ? 'У тебя уже есть активное обращение' : '';
+      }
+
+      // ---------- Сообщения ----------
+      function addMsg(ticket, author, text, time) {
+        const div = document.createElement('div');
+        div.className = 'msg ' + (author === 'Ты' ? 'user' : 'admin');
+        const a = document.createElement('span');
+        a.className = 'msg-author';
+        a.textContent = author + ' · ' + (time || nowTime());
+        const p = document.createElement('div');
+        p.textContent = text;
+        div.appendChild(a);
+        div.appendChild(p);
+        body.appendChild(div);
+        body.scrollTop = body.scrollHeight;
+      }
+
+      function renderThread() {
+        const mine = myTickets();
+        const t = mine.find(x => x.id === currentId);
+        body.innerHTML = '';
+        if (!t) {
+          threadTitle.textContent = 'Обращения';
+          threadStatus.innerHTML = '';
+          closeBtn.style.display = 'none';
+          input.disabled = true;
+          sendBtn.disabled = true;
+          return;
+        }
+        threadTitle.textContent = t.subject;
+        if (t.status === 'open') {
+          threadStatus.innerHTML = '<span class="dot"></span> Администрация онлайн';
+          closeBtn.style.display = '';
+          input.disabled = false;
+          sendBtn.disabled = false;
+        } else {
+          threadStatus.innerHTML = 'Обращение закрыто';
+          closeBtn.style.display = 'none';
+          input.disabled = true;
+          sendBtn.disabled = true;
+        }
+        t.messages.forEach(m => addMsg(t, m.author, m.text, m.time));
+      }
+
+      function openTicket(id) {
+        currentId = id;
+        renderList();
+        renderThread();
+      }
+
+      // ---------- Ответ администратора (заглушка) ----------
+      function adminReply(ticket, userText) {
+        if (ticket.status !== 'open') return;
+        busy = true;
+        const typing = document.createElement('div');
+        typing.className = 'chat-typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        body.appendChild(typing);
+        body.scrollTop = body.scrollHeight;
+
+        const lower = userText.toLowerCase();
+        let reply;
+        if (/(привет|здравств|салют|здаров)/.test(lower)) {
+          reply = 'Привет! Рад видеть тебя в поддержке. Опиши свою проблему подробнее.';
+        } else if (/(бан|разбан|наказан)/.test(lower)) {
+          reply = 'По банам: напиши свой ник и причину, по которой, по твоему мнению, бан несправедлив. Проверим историю наказаний.';
+        } else if (/(возврат|покупк|оплат|монет|магазин)/.test(lower)) {
+          reply = 'Вопрос про магазин? Если покупка не пришла или нужен возврат — напиши ник и способ оплаты. Разберёмся.';
+        } else {
+          reply = 'Мы получили твоё сообщение и передали его администратору. Опиши проблему подробнее — это ускорит решение.';
+        }
+
+        setTimeout(() => {
+          typing.remove();
+          const time = nowTime();
+          ticket.messages.push({ author: ADMIN, text: reply, time });
+          save();
+          const cu = currentUser();
+          if (cu && window.Notif) {
+            window.Notif.push(cu.id, 'appeal', 'Ответ администрации',
+              'По обращению «' + ticket.subject + '»: ' + reply, 'appeals.html');
+          }
+          renderThread();
+          busy = false;
+          if (notice) notice.style.display = 'none';
+        }, 900 + Math.random() * 900);
+      }
+
+      // ---------- Отправка ----------
+      function send() {
+        const t = myTickets().find(x => x.id === currentId);
+        if (!t || t.status !== 'open' || busy) return;
+        const text = input.value.trim();
+        if (!text) return;
+        t.messages.push({ author: 'Ты', text, time: nowTime() });
+        save();
+        renderThread();
+        input.value = '';
+        adminReply(t, text);
+        input.focus();
+      }
+
+      sendBtn.addEventListener('click', send);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+      closeBtn.addEventListener('click', () => {
+        const t = myTickets().find(x => x.id === currentId);
+        if (!t) return;
+        t.status = 'closed';
+        t.messages.push({ author: ADMIN, text: 'Обращение закрыто. Если появятся вопросы — создай новое.', time: nowTime() });
+        save();
+        renderList();
+        renderThread();
+      });
+
+      // ---------- Новое обращение ----------
+      const modal = document.getElementById('new-appeal-modal');
+      const subject = document.getElementById('new-appeal-subject');
+      const text = document.getElementById('new-appeal-text');
+      const modalErr = document.getElementById('new-appeal-error');
+
+      document.getElementById('new-appeal').addEventListener('click', () => {
+        if (!currentUser()) {
+          location.href = 'auth.html?redirect=' + encodeURIComponent('appeals.html');
+          return;
+        }
+        if (myTickets().some(t => t.status === 'open')) return;
+        modalErr.textContent = '';
+        subject.value = '';
+        text.value = '';
+        modal.classList.add('open');
+        setTimeout(() => subject.focus(), 50);
+      });
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+
+      document.getElementById('new-appeal-submit').addEventListener('click', () => {
+        const u = currentUser();
+        if (!u) { location.href = 'auth.html?redirect=' + encodeURIComponent('appeals.html'); return; }
+        if (myTickets().some(t => t.status === 'open')) {
+          modalErr.textContent = 'У тебя уже есть активное обращение. Закрой его, чтобы создать новое.';
+          return;
+        }
+        const s = subject.value.trim();
+        const tx = text.value.trim();
+        if (!s) { modalErr.textContent = 'Укажи тему обращения'; return; }
+        if (tx.length < 5) { modalErr.textContent = 'Сообщение должно быть не короче 5 символов'; return; }
+        const t = {
+          id: 't_' + Date.now().toString(36),
+          owner: u.name,
+          subject: s,
+          status: 'open',
+          createdAt: new Date().toLocaleString('ru-RU'),
+          messages: [{ author: 'Ты', text: tx, time: nowTime() }],
+        };
+        tickets.push(t);
+        save();
+        modal.classList.remove('open');
+        openTicket(t.id);
+        adminReply(t, tx);
+      });
+
+      // ---------- Старт ----------
+      if (!tickets) { tickets = seed(); save(); }
+      // Очистка старых демо-тикетов (без владельца) — обращения стартуют с чистого листа
+      const legacy = tickets.filter(t => !t.owner);
+      if (legacy.length) {
+        tickets = tickets.filter(t => t.owner);
+        save();
+      }
+      renderList();
+      const mine = myTickets();
+      if (mine.length) openTicket(mine[0].id);
+    });
+  </script>
+</body>
+</html>

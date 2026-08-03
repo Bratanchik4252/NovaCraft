@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOVACRAFT — модовый майнкрафт-проект</title>
+  <meta name="description" content="Модовый майнкрафт-проект: уникальная атмосфера, свои сервера, экономика и лаунчер.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M16 4v14' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M4 11l12 7 12-7' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main>
+    <!-- ================= ГЕРОЙ-БЛОК ================= -->
+    <section class="hero">
+      <canvas id="particles"></canvas>
+
+      <div class="hero-inner">
+        <!-- 3D-куб земли (CSS, исчезает при скролле) -->
+        <div class="cube-scene" id="cube-scene">
+          <div class="cube" id="dirt-cube">
+            <div class="face top"></div>
+            <div class="face bottom"></div>
+            <div class="face front"></div>
+            <div class="face back"></div>
+            <div class="face left"></div>
+            <div class="face right"></div>
+          </div>
+        </div>
+
+        <h1 class="text-glow anim-fade-up">Добро пожаловать на<br><span id="hero-project-name">NOVACRAFT</span></h1>
+        <p class="subtitle anim-fade-up delay-1">Модовый майнкрафт-проект с уникальной атмосферой. Свои сервера, экономика, кастомный контент и лаунчер.</p>
+
+        <div class="hero-actions anim-fade-up delay-2">
+          <a href="#how-to-play" class="btn btn-primary btn-lg">Начать играть</a>
+          <a href="download.html" class="btn btn-lg">Скачать лаунчер</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="page-content">
+
+      <!-- ================= КАК НАЧАТЬ ИГРАТЬ ================= -->
+      <section id="how-to-play" class="section">
+        <h2 class="section-title text-glow">Как начать играть</h2>
+
+        <div class="grid-3 steps">
+          <article class="step glass reveal">
+            <h3>Зарегистрируйся</h3>
+            <p class="text-muted" style="margin-top:10px">Создай аккаунт — это займёт меньше минуты. Аккаунт нужен для лаунчера и статистики.</p>
+            <a href="auth.html" class="btn btn-sm" style="margin-top:18px">Регистрация &rarr;</a>
+          </article>
+
+          <article class="step glass reveal delay-1">
+            <h3>Скачай лаунчер</h3>
+            <p class="text-muted" style="margin-top:10px">Наш лаунчер сам установит нужную версию модов. Работает на Windows, Mac и Linux.</p>
+            <a href="download.html" class="btn btn-sm" style="margin-top:18px">Скачать &rarr;</a>
+          </article>
+
+          <article class="step glass reveal delay-2">
+            <h3>Наслаждайся игрой</h3>
+            <p class="text-muted" style="margin-top:10px">Войди в лаунчер под своим аккаунтом и заходи на любой сервер проекта.</p>
+            <!-- Кнопка активна после регистрации и скачивания (см. main.js) -->
+            <button class="btn btn-sm" id="play-now-btn" style="margin-top:18px" data-cta="play">Играть &rarr;</button>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================= О ПРОЕКТЕ ================= -->
+      <section class="section">
+        <h2 class="section-title text-glow">О проекте</h2>
+        <div class="glass card reveal" style="max-width:820px;margin:0 auto;text-align:center">
+          <p id="typewriter" data-text="NOVACRAFT — это модовый майнкрафт-проект, где каждый найдёт своё: выживание с уникальными механиками, экономика с игровыми монетами, свои сервера с регулярными вайпами и дружное сообщество. Зарегистрируйся, скачай лаунчер и стань частью истории."></p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/3d.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Заполняем название проекта на странице (общий конфиг из main.js)
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.MC) {
+        document.querySelectorAll('#hero-project-name').forEach(el => el.textContent = MC.PROJECT_NAME);
+      }
+
+      // Кнопка «Играть» (шаг 3) — активируется после регистрации и скачивания
+      // TODO: заменить проверки на API бэкенда
+      const playBtn = document.getElementById('play-now-btn');
+      if (playBtn) {
+        const registered = !!(window.Auth && Auth.isAuthed());
+        const downloaded = localStorage.getItem('mc:downloaded') === 'true';
+        if (registered && downloaded) {
+          playBtn.classList.remove('disabled');
+          playBtn.addEventListener('click', () => location.href = 'servers.html');
+        } else {
+          playBtn.classList.add('disabled');
+          playBtn.title = 'Сначала зарегистрируйся и скачай лаунчер';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

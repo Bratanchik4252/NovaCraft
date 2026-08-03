@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Личный кабинет — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Личный кабинет</h1>
+      <p>Скин, привилегии, монеты и настройки аккаунта.</p>
+    </div>
+
+    <div class="cabinet anim-fade-up delay-1">
+      <aside class="glass cab-side" id="cab-side">
+        <button class="cab-tab active" data-tab="appearance" type="button">Внешний вид</button>
+        <button class="cab-tab" data-tab="bonus" type="button">Бонус</button>
+        <button class="cab-tab" data-tab="referral" type="button">Реферальная система</button>
+        <button class="cab-tab" data-tab="settings" type="button">Настройки</button>
+        <button class="cab-tab" data-tab="2fa" type="button">Двухфакторная аутентификация</button>
+        <button class="cab-tab" data-tab="providers" type="button">Способы авторизации</button>
+        <button class="cab-tab" data-tab="transactions" type="button">История транзакций</button>
+      </aside>
+
+      <section>
+
+        <!-- ============ ВНЕШНИЙ ВИД ============ -->
+        <div class="cab-panel active" id="panel-appearance">
+          <h3>Внешний вид</h3>
+          <p class="text-muted">Скин, плащ и аватарка аккаунта. Аватарку видно в шапке и в профиле.</p>
+
+          <div class="appearance-grid">
+            <div class="glass cab-card">
+              <h4>Скин (PNG 64x64)</h4>
+              <canvas class="skin3d-canvas" id="skin3d" width="300" height="356"></canvas>
+              <div class="file-drop" id="skin-drop" style="margin-top:14px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                </svg>
+                <div class="fd-title">Перетащи скин сюда</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG)</div>
+              </div>
+              <input type="file" id="skin-input" accept="image/png" style="display:none">
+              <div class="text-muted" id="skin-status" style="font-size:13px;margin-top:10px;text-align:center">Скин пока не загружен</div>
+            </div>
+
+            <div class="glass cab-card">
+              <h4>Плащ (PNG)</h4>
+              <canvas class="skin3d-canvas" id="cape3d" width="300" height="356"></canvas>
+              <div class="file-drop" id="cape-drop" style="margin-top:14px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                </svg>
+                <div class="fd-title">Перетащи плащ сюда</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG)</div>
+              </div>
+              <input type="file" id="cape-input" accept="image/png" style="display:none">
+              <div class="text-muted" id="cape-status" style="font-size:13px;margin-top:10px;text-align:center">Плащ пока не загружен</div>
+            </div>
+          </div>
+
+          <div class="text-muted" style="font-size:12px;text-align:center;margin-top:10px">Потяни мышью по 3D-модели, чтобы покрутить</div>
+
+          <div class="glass cab-card">
+            <h4>Аватарка</h4>
+            <p class="text-muted" style="font-size:13px;margin-bottom:16px">
+              Картинка или GIF до 5 МБ. Статичную картинку можно обрезать квадратом, GIF сохраняется как есть.
+            </p>
+            <div id="avatar-area" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+              <img class="avatar-preview" id="avatar-preview" alt="Аватарка">
+              <div style="flex:1;min-width:220px">
+                <div class="file-drop" id="avatar-drop">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                  </svg>
+                  <div class="fd-title">Перетащи аватарку сюда</div>
+                  <div class="fd-hint">или нажми, чтобы выбрать файл</div>
+                </div>
+                <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/gif" style="display:none">
+                <div class="text-muted" id="avatar-status" style="font-size:13px;margin-top:8px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ БОНУС ============ -->
+        <div class="cab-panel" id="panel-bonus">
+          <h3>Бонус</h3>
+          <p class="text-muted">Проголосуй за проект на площадках — и получи бонус на аккаунт.</p>
+          <div class="glass cab-card" id="vote-list"></div>
+          <div class="text-muted" id="vote-result" style="font-size:14px;margin-top:12px"></div>
+        </div>
+
+        <!-- ============ РЕФЕРАЛЬНАЯ СИСТЕМА ============ -->
+        <div class="cab-panel" id="panel-referral">
+          <h3>Реферальная система</h3>
+          <p class="text-muted">
+            Пригласи друга по своей ссылке: он получит <strong>VIP на 7 дней</strong>, а ты — монеты
+            за каждый час его игры (5 монет/час). Система пока в разработке.
+          </p>
+          <div class="glass cab-card">
+            <h4>Твоя ссылка</h4>
+            <div class="ref-link-box">
+              <input id="ref-link" readonly>
+              <button class="btn btn-sm" id="ref-copy" type="button">Скопировать</button>
+            </div>
+          </div>
+          <div class="glass cab-card">
+            <h4>Приглашённые игроки</h4>
+            <div id="ref-list"></div>
+          </div>
+        </div>
+
+        <!-- ============ НАСТРОЙКИ ============ -->
+        <div class="cab-panel" id="panel-settings">
+          <h3>Настройки</h3>
+          <p class="text-muted">Пароль, тема сайта и публичный профиль.</p>
+
+          <div class="glass cab-card">
+            <h4>Сменить пароль</h4>
+            <div class="field">
+              <label for="set-pass-current">Текущий пароль</label>
+              <input type="password" id="set-pass-current" autocomplete="current-password">
+            </div>
+            <div class="field">
+              <label for="set-pass-new">Новый пароль</label>
+              <input type="password" id="set-pass-new" autocomplete="new-password">
+            </div>
+            <div class="field">
+              <label for="set-pass-new2">Повторите новый пароль</label>
+              <input type="password" id="set-pass-new2" autocomplete="new-password">
+              <span class="error-msg" id="set-pass-error"></span>
+            </div>
+            <button class="btn btn-sm" id="set-pass-btn" type="button">Сохранить пароль</button>
+          </div>
+
+          <div class="glass cab-card">
+            <h4>Тема сайта</h4>
+            <p class="text-muted" style="font-size:14px;margin-bottom:12px">Сейчас: <span id="set-theme-name">тёмная</span></p>
+            <button class="btn btn-sm" id="set-theme" type="button">Сменить тему</button>
+          </div>
+
+          <div class="glass cab-card">
+            <h4>Публичный профиль</h4>
+            <p class="text-muted" style="font-size:14px;margin-bottom:14px">
+              То, что видят другие игроки на странице твоего профиля.
+            </p>
+            <div class="field">
+              <label for="set-desc">Описание «о себе»</label>
+              <textarea id="set-desc" rows="3" maxlength="300" placeholder="Расскажи о себе..."></textarea>
+            </div>
+            <div class="field">
+              <label>Банер / фон профиля (картинка или GIF до 5 МБ)</label>
+              <div class="file-drop" id="banner-drop">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                </svg>
+                <div class="fd-title">Перетащи банер сюда</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл</div>
+              </div>
+              <input type="file" id="set-banner" accept="image/png,image/jpeg,image/gif" style="display:none">
+              <span class="text-muted" id="banner-status" style="font-size:13px"></span>
+            </div>
+            <div class="field">
+              <label>Приватность</label>
+              <label class="chk"><input type="checkbox" id="pv-stats"> Показывать статистику (блоки, монеты)</label>
+              <label class="chk"><input type="checkbox" id="pv-time"> Показывать график времени в игре</label>
+              <label class="chk"><input type="checkbox" id="pv-priv"> Показывать привилегию</label>
+              <label class="chk"><input type="checkbox" id="pv-desc"> Показывать описание</label>
+              <label class="chk"><input type="checkbox" id="pv-banner"> Показывать банер</label>
+            </div>
+            <button class="btn btn-sm" id="set-profile-save" type="button">Сохранить профиль</button>
+            <span class="error-msg" id="set-profile-status"></span>
+          </div>
+        </div>
+
+        <!-- ============ 2FA ============ -->
+        <div class="cab-panel" id="panel-2fa">
+          <h3>Двухфакторная аутентификация</h3>
+          <p class="text-muted">Дополнительная защита входа в аккаунт.</p>
+          <div class="glass cab-card">
+            <label class="chk" style="font-size:16px">
+              <input type="checkbox" id="fa2-toggle"> Включить двухфакторную аутентификацию
+            </label>
+            <p class="text-muted" style="font-size:14px;margin-top:14px">
+              Пока это заглушка: реальная проверка появится позже (бот ВКонтакте или Telegram).
+            </p>
+            <span class="error-msg" id="fa2-status"></span>
+          </div>
+        </div>
+
+        <!-- ============ СПОСОБЫ АВТОРИЗАЦИИ ============ -->
+        <div class="cab-panel" id="panel-providers">
+          <h3>Способы авторизации</h3>
+          <p class="text-muted">
+            Привяжи Google, Telegram, ВКонтакте или Яндекс, чтобы входить в аккаунт через любой из них.
+          </p>
+          <div id="providers-list"></div>
+        </div>
+
+        <!-- ============ ИСТОРИЯ ТРАНЗАКЦИЙ ============ -->
+        <div class="cab-panel" id="panel-transactions">
+          <h3>История транзакций</h3>
+          <p class="text-muted">Пополнения и списания по аккаунту.</p>
+          <div class="seg">
+            <button class="os-tab active" data-tx="all" type="button">Все</button>
+            <button class="os-tab" data-tx="in" type="button">Пополнения</button>
+            <button class="os-tab" data-tx="out" type="button">Списания</button>
+          </div>
+          <div id="tx-list" class="tx-list"></div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <!-- Модалка кадрирования аватарки -->
+  <div class="modal-overlay" id="crop-overlay">
+    <div class="modal" style="position:relative;max-width:420px">
+      <h3 style="margin-bottom:16px">Обрезка аватарки</h3>
+      <div class="crop-wrap">
+        <div class="crop-box" id="crop-box"><img id="crop-img" alt=""></div>
+        <input type="range" class="crop-slider" id="crop-zoom" min="100" max="400" value="100">
+        <div style="display:flex;gap:10px;width:100%;max-width:320px">
+          <button class="btn btn-sm" id="crop-cancel" type="button" style="flex:1">Отмена</button>
+          <button class="btn btn-primary btn-sm" id="crop-save" type="button" style="flex:1">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/profile.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <script src="js/skin3d.js"></script>
+</body>
+</html>

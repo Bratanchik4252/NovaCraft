@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Правила — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Правила</h1>
+      <p>Нарушение правил карается баном. Оспорить наказание можно в разделе «Обращения».</p>
+    </div>
+
+    <!-- TODO: правила придут с бэкенда /api/rules, редактирование — в админ-панели -->
+    <div class="cabinet anim-fade-up delay-1">
+      <aside class="glass cab-side">
+        <button class="cab-tab active" data-tab="rules-project" type="button">Правила проекта</button>
+        <button class="cab-tab" data-tab="rules-servers" type="button">Правила серверов</button>
+      </aside>
+
+      <section>
+        <!-- ============ ПРАВИЛА ПРОЕКТА ============ -->
+        <div class="cab-panel active" id="panel-rules-project">
+          <h3>Правила проекта</h3>
+          <p class="text-muted">Действуют на всех серверах проекта NOVACRAFT.</p>
+
+          <div class="acc-item open">
+            <button class="acc-head" type="button">
+              <span class="acc-num">1</span>
+              <span>Общие правила</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">2</span>
+              <span>Аккаунт</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">3</span>
+              <span>Чат и общение</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">4</span>
+              <span>Строительство и гриферство</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">5</span>
+              <span>Экономика и магазин</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ ПРАВИЛА СЕРВЕРОВ ============ -->
+        <div class="cab-panel" id="panel-rules-servers">
+          <h3>Правила серверов</h3>
+          <p class="text-muted">Дополняют общие правила проекта на отдельных серверах.</p>
+
+          <div class="acc-item open">
+            <button class="acc-head" type="button">
+              <span class="acc-num">1</span>
+              <span>Общие правила серверов</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">2</span>
+              <span>Анархия</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">3</span>
+              <span>Мирный (выживание)</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">4</span>
+              <span>Креатив</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item">
+            <button class="acc-head" type="button">
+              <span class="acc-num">5</span>
+              <span>Ивенты</span>
+              <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="acc-body">
+              <div class="acc-body-inner">
+                Текст правил появится с выходом физического сервера. Редактирование — в админ-панели.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll('.cab-tab');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (t) { t.classList.toggle('active', t === tab); });
+          document.querySelectorAll('.cab-panel').forEach(function (p) {
+            p.classList.toggle('active', p.id === 'panel-' + tab.dataset.tab);
+          });
+        });
+      });
+
+      document.querySelectorAll('.acc-head').forEach(function (head) {
+        head.addEventListener('click', function () {
+          head.parentElement.classList.toggle('open');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
