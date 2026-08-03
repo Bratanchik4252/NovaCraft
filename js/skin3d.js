@@ -40,7 +40,7 @@
         skin: skinUrl || DEFAULT_SKIN,
         fov: 10,
         zoom: 1,
-        animation: new skinview3d.WalkAnimation(),
+        animation: new skinview3d.WalkingAnimation(),
       });
       viewer.controls.enableZoom = false;
       viewer.controls.enablePan = false;
@@ -52,7 +52,7 @@
     }
 
     // Плащ (если передан) — как отдельная текстура на спине.
-    if (capeUrl && viewer.player && viewer.player.cape) {
+    if (capeUrl && viewer.playerObject && viewer.playerObject.cape) {
       viewer.loadCape(capeUrl);
     }
 
