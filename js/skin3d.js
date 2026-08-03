@@ -224,10 +224,10 @@
         cgeo.translate(0, -1.7, 0);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
-          map: ctex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, depthWrite: false,
+          map: ctex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, depthWrite: false,
         }));
-        // Плащ свисает с шеи: верх чуть ниже головы (голова 6..8, тело 3..6)
-        parts.cape.position.set(0, 4.55, -0.62);
+        // Плащ крепится к шее: верх под головой (голова 6..8), свисает по спине
+        parts.cape.position.set(0, 5.7, -0.72);
         group.add(parts.cape);
       }
     }

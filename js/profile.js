@@ -380,8 +380,9 @@
       });
     }
 
+    const ctx = capeCanvas ? capeCanvas.getContext('2d') : null;
+
     if (capeCanvas) {
-      const ctx = capeCanvas.getContext('2d');
       renderCapePreview(user.cape);
     }
 
