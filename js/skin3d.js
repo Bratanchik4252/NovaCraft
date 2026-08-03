@@ -220,9 +220,9 @@
       Object.values(parts).forEach(m => group.add(m));
 
       if (capeImg && capeImg.complete) {
-        // Ширина чуть больше тела (2), высота ~2.8 — от шеи до низа торса
-        const cgeo = new THREE.PlaneGeometry(2.4, 2.8, 1, 8);
-        cgeo.translate(0, -1.4, 0);
+        // Ширина чуть больше тела (2), высота ~3.2 — от шеи почти до низа торса
+        const cgeo = new THREE.PlaneGeometry(2.7, 3.2, 1, 8);
+        cgeo.translate(0, -1.6, 0);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
           map: ctex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
@@ -252,7 +252,7 @@
       }
       if (parts.cape) {
         parts.cape.position.y = 5.9 + bob;
-        parts.cape.rotation.z = Math.sin(phase * 0.5) * 0.12;
+        parts.cape.rotation.x = Math.sin(phase) * 0.04;
       }
 
       if (Date.now() - lastDrag > 2500) modelRot += 0.004;
