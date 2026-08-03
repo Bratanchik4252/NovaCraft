@@ -111,14 +111,14 @@ create table if not exists public.bans (
 
 -- ---------- Товары магазина ----------
 create table if not exists public.products (
-  id         bigint generated always as identity primary key,
-  category   text not null,              -- priv / items
-  name       text not null,
-  rub        numeric not null default 0,
-  coins      numeric not null default 0,
-  desc       text,
-  features   jsonb not null default '[]', -- список возможностей привилегии
-  sort       integer not null default 0
+  id          bigint generated always as identity primary key,
+  category    text not null,              -- priv / items
+  name        text not null,
+  rub         numeric not null default 0,
+  coins       numeric not null default 0,
+  description text,
+  features    jsonb not null default '[]', -- список возможностей привилегии
+  sort        integer not null default 0
 );
 
 -- ---------- Команда проекта ----------

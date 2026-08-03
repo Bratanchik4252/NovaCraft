@@ -96,7 +96,7 @@
               name: p.name, rub: Number(p.rub) || 0, features: p.features || [],
             }));
             const items = prods.filter(p => p.category === 'items').map(p => ({
-              name: p.name, rub: Number(p.rub) || 0, coins: Number(p.coins) || 0, desc: p.desc || '',
+              name: p.name, rub: Number(p.rub) || 0, coins: Number(p.coins) || 0, desc: p.description || '',
             }));
             if (priv.length) SHOP.priv = priv;
             if (items.length) SHOP.items = items;
