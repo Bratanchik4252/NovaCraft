@@ -108,11 +108,15 @@
     return true;
   }
 
-  function regionTexture(img, r) {
+  function regionTexture(img, r, flip) {
     const c = document.createElement('canvas');
     c.width = r.w; c.height = r.h;
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
+    if (flip) {
+      g.translate(r.w, 0);
+      g.scale(-1, 1);
+    }
     g.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     const tex = new THREE.CanvasTexture(c);
     tex.magFilter = THREE.NearestFilter;
@@ -185,12 +189,14 @@
       if (regionEmpty(skinImg, ARM_L.front)) armL = ARM_R;
       if (regionEmpty(skinImg, LEG_L.front)) legL = LEG_R;
 
-      const mat = (img, r) => new THREE.MeshLambertMaterial({ map: regionTexture(img, r), alphaTest: 0.5 });
+      const mat = (img, r, flip) => new THREE.MeshLambertMaterial({ map: regionTexture(img, r, flip), alphaTest: 0.5 });
       const makePart = (w, h, d, rmap, pivotTop) => {
         const geo = new THREE.BoxGeometry(w, h, d);
         if (pivotTop) geo.translate(0, -h / 2, 0);
+        // Боковые грани (right/left) в three.js отображаются зеркально —
+        // флипаем их текстуру, чтобы стороны не путались.
         const mats = [
-          mat(skinImg, rmap.right), mat(skinImg, rmap.left),
+          mat(skinImg, rmap.right, true), mat(skinImg, rmap.left, true),
           mat(skinImg, rmap.top), mat(skinImg, rmap.bottom),
           mat(skinImg, rmap.front), mat(skinImg, rmap.back),
         ];
@@ -214,13 +220,14 @@
       Object.values(parts).forEach(m => group.add(m));
 
       if (capeImg && capeImg.complete) {
-        const cgeo = new THREE.PlaneGeometry(2.2, 3.6, 1, 10);
-        cgeo.translate(0, -1.8, 0);
+        const cgeo = new THREE.PlaneGeometry(2.2, 3.4, 1, 10);
+        cgeo.translate(0, -1.7, 0);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
           map: ctex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, depthWrite: false,
         }));
-        parts.cape.position.set(0, 5.0, -0.62);
+        // Плащ свисает с шеи: верх чуть ниже головы (голова 6..8, тело 3..6)
+        parts.cape.position.set(0, 4.55, -0.62);
         group.add(parts.cape);
       }
     }
@@ -243,7 +250,7 @@
         parts.head.rotation.y = Math.sin(phase * 0.5) * 0.05;
       }
       if (parts.cape) {
-        parts.cape.position.y = 4.5 + bob;
+        parts.cape.position.y = 4.55 + bob;
         parts.cape.rotation.z = Math.sin(phase * 0.5) * 0.12;
       }
 

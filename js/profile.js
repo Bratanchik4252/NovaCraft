@@ -348,19 +348,22 @@
 
     window.start3D(skinCanvas, user.skin, user.cape);
 
-    if (capeCanvas) {
-      // Второй канвас — плащ крупным планом
-      const ctx = capeCanvas.getContext('2d');
-      Promise.resolve(user.cape ? loadImage(user.cape) : null).then(cape => {
+    // Рендер плаща крупным планом на втором канвасе (#cape3d)
+    let capeRaf = 0;
+    let capeLoaded = null;
+    function renderCapePreview(src) {
+      cancelAnimationFrame(capeRaf);
+      Promise.resolve(src ? loadImage(src) : null).then(cape => {
+        capeLoaded = cape;
         const loop = t => {
           const W = capeCanvas.width;
           ctx.clearRect(0, 0, W, W);
           ctx.imageSmoothingEnabled = false;
-          if (cape) {
+          if (capeLoaded) {
             ctx.fillStyle = 'rgba(255,255,255,0.05)';
             ctx.fillRect(0, 0, W, W);
             const wave = Math.sin(t / 500) * 6;
-            ctx.drawImage(cape, 0, 0, cape.width, cape.height, 70, 30 + wave, 100, 180);
+            ctx.drawImage(capeLoaded, 0, 0, capeLoaded.width, capeLoaded.height, 70, 30 + wave, 100, 180);
           } else {
             ctx.fillStyle = 'rgba(255,255,255,0.05)';
             ctx.fillRect(0, 0, W, W);
@@ -371,10 +374,15 @@
             ctx.textAlign = 'center';
             ctx.fillText('Плащ не загружен', W / 2, 130);
           }
-          requestAnimationFrame(loop);
+          capeRaf = requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
       });
+    }
+
+    if (capeCanvas) {
+      const ctx = capeCanvas.getContext('2d');
+      renderCapePreview(user.cape);
     }
 
     // ---------- Загрузка скина (drag-drop) ----------
@@ -389,6 +397,7 @@
         const fresh = getCurrentUser() || user;
         window.start3D(skinCanvas, fresh.skin, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сохранён';
+        refreshSkinButtons();
       };
       reader.readAsDataURL(file);
     });
@@ -401,8 +410,18 @@
         const fresh = getCurrentUser() || user;
         window.start3D(skinCanvas, null, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сброшен на стандартный';
+        refreshSkinButtons();
       });
     }
+
+    // Кнопки сброса видны только когда скин/плащ загружены
+    const capeReset = $('#cape-reset');
+    function refreshSkinButtons() {
+      const fresh = getCurrentUser() || user;
+      if (skinReset) skinReset.style.display = fresh.skin ? '' : 'none';
+      if (capeReset) capeReset.style.display = fresh.cape ? '' : 'none';
+    }
+    refreshSkinButtons();
 
     // ---------- Загрузка плаща (drag-drop) ----------
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
@@ -415,10 +434,24 @@
         Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
         const fresh = getCurrentUser() || user;
         window.start3D(skinCanvas, fresh.skin, fresh.cape);
+        renderCapePreview(fresh.cape);
         if (capeStatus) capeStatus.textContent = 'Плащ сохранён';
+        refreshSkinButtons();
       };
       reader.readAsDataURL(file);
     });
+
+    // ---------- Сброс плаща ----------
+    if (capeReset) {
+      capeReset.addEventListener('click', () => {
+        Auth.updateCurrentUser(u => { u.cape = null; });
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, fresh.skin, null);
+        renderCapePreview(null);
+        if (capeStatus) capeStatus.textContent = 'Плащ сброшен';
+        refreshSkinButtons();
+      });
+    }
 
     // ---------- Аватарка (drag-drop, с кадрированием) ----------
     const preview = $('#avatar-preview');
