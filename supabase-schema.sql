@@ -204,6 +204,7 @@ create policy "pc_delete" on public.profile_comments
   for delete using (
     auth.uid() = author_id
     or exists (select 1 from public.profiles p where p.id = auth.uid() and p.name = profile_name)
+    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.name = author_name)
   );
 
 -- Тикеты: видит и меняет только владелец

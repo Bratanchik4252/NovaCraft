@@ -397,11 +397,11 @@
       }));
     },
 
-    async addComment(profileName, authorName, text) {
+    async addComment(profileName, authorName, text, authorId) {
       if (!this.configured) return null;
       const { data, error } = await client
         .from('profile_comments')
-        .insert({ profile_name: String(profileName), author_name: authorName, text, votes: {} })
+        .insert({ profile_name: String(profileName), author_name: authorName, author_id: authorId || null, text, votes: {} })
         .select()
         .single();
       if (error || !data) return null;

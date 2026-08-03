@@ -473,7 +473,7 @@
           votes: {},
         };
         if (isCloud && DB.addComment) {
-          DB.addComment(p.name, user.name, t).then(nc => {
+          DB.addComment(p.name, user.name, t, user.id).then(nc => {
             if (nc && nc.id) c.id = nc.id;
             comments.push(c);
             setCd();
