@@ -31,6 +31,13 @@
   }
 
   // ---------- Шапка профиля ----------
+  // Привилегия с цветом красит имя игрока (например, красный «Создатель»)
+  function privilegeColor(p) {
+    const privs = Array.isArray(p.privileges) ? p.privileges : [];
+    const colored = privs.find(pr => pr.color);
+    return colored ? colored.color : null;
+  }
+
   function renderHeader(p) {
     const banner = $('#player-banner');
     if (p.banner && p.privacy.showBanner !== false) {
@@ -55,7 +62,13 @@
       avatar.src = c.toDataURL('image/png');
     }
 
-    $('#player-name').textContent = p.name;
+    const nameEl = $('#player-name');
+    nameEl.textContent = p.name;
+    const color = privilegeColor(p);
+    if (color) {
+      nameEl.style.color = color;
+      nameEl.style.textShadow = `0 0 18px ${color}`;
+    }
     $('#player-desc').textContent = p.privacy.showDescription === false ? '' : (p.description || '');
 
     const status = $('#player-status');
@@ -137,17 +150,23 @@
 
     host.innerHTML = visible.map(pr => {
       const expired = pr.expiresAt && pr.expiresAt <= now;
+      // Цветная привилегия (например, «Создатель») — красит надпись и полоску
+      const color = pr.color || null;
+      const nameStyle = color ? `style="color:${color};text-shadow:0 0 14px ${color}"` : '';
+      const barStyle = color
+        ? `style="width:100%;background:linear-gradient(90deg,${color},${color}cc);box-shadow:0 0 12px ${color}"`
+        : 'style="width:100%"';
       if (pr.expiresAt == null) {
         // навсегда — полная зелёная полоска
         return `
           <div class="priv-card">
-            <div class="priv-name">${MC.esc(pr.name)}</div>
+            <div class="priv-name" ${nameStyle}>${MC.esc(pr.name)}</div>
             <div class="priv-meta">
               <span>Сервер: <strong>${MC.esc(pr.server)}</strong></span>
               <span>Дата покупки: <strong>${MC.esc(pr.purchaseDate)}</strong></span>
               <span>Срок: <strong>Навсегда</strong></span>
             </div>
-            <div class="priv-bar"><div class="priv-bar-fill" style="width:100%"></div></div>
+            <div class="priv-bar"><div class="priv-bar-fill" ${barStyle}></div></div>
             <div class="priv-days">&#10022; Бессрочная</div>
           </div>
         `;
@@ -156,14 +175,17 @@
       const left = Math.max(0, pr.expiresAt - now);
       const pct = total > 0 ? Math.max(0, Math.min(100, (left / total) * 100)) : 100;
       const daysLeft = Math.ceil(left / day);
+      const barStylePct = color
+        ? `style="width:${pct}%;background:linear-gradient(90deg,${color},${color}cc);box-shadow:0 0 12px ${color}"`
+        : `style="width:${pct}%"`;
       return `
         <div class="priv-card">
-          <div class="priv-name">${MC.esc(pr.name)}${expired ? ' <span class="badge badge-bad">истекла</span>' : ''}</div>
+          <div class="priv-name" ${nameStyle}>${MC.esc(pr.name)}${expired ? ' <span class="badge badge-bad">истекла</span>' : ''}</div>
           <div class="priv-meta">
             <span>Сервер: <strong>${MC.esc(pr.server)}</strong></span>
             <span>Дата покупки: <strong>${MC.esc(pr.purchaseDate)}</strong></span>
           </div>
-          <div class="priv-bar"><div class="priv-bar-fill" style="width:${pct}%"></div></div>
+          <div class="priv-bar"><div class="priv-bar-fill" ${barStylePct}></div></div>
           <div class="priv-days">${expired ? 'Истекла' : 'Осталось: ' + daysLeft + ' дн.'}</div>
         </div>
       `;
