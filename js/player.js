@@ -10,24 +10,24 @@
 (function () {
   function init() {
     const name = new URLSearchParams(location.search).get('name') || '';
-    const player = window.findPlayer ? findPlayer(name) : null;
+    Promise.resolve(window.findPlayer ? findPlayer(name) : null).then(player => {
+      const hero = $('#player-hero');
+      const content = $('#player-content');
+      const notfound = $('#player-notfound');
+      if (!player) {
+        if (hero) hero.style.display = 'none';
+        if (content) content.style.display = 'none';
+        if (notfound) notfound.style.display = '';
+        return;
+      }
 
-    const hero = $('#player-hero');
-    const content = $('#player-content');
-    const notfound = $('#player-notfound');
-    if (!player) {
-      if (hero) hero.style.display = 'none';
-      if (content) content.style.display = 'none';
-      if (notfound) notfound.style.display = '';
-      return;
-    }
-
-    renderHeader(player);
-    renderPrivilege(player);
-    renderStats(player);
-    initActions(player);
-    initComments(player);
-    initChart(player);
+      renderHeader(player);
+      renderPrivilege(player);
+      renderStats(player);
+      initActions(player);
+      initComments(player);
+      initChart(player);
+    });
   }
 
   // ---------- Шапка профиля ----------
@@ -111,19 +111,31 @@
     const block = $('#player-priv-block');
     const privs = Array.isArray(p.privileges) ? p.privileges : [];
 
-    if (p.privacy.showPrivilege === false || !privs.length) {
-      if (!privs.length) {
-        host.innerHTML = '<div class="priv-none">У игрока пока нет привилегии</div>';
-      } else {
-        block.style.display = 'none';
-      }
+    // Если привилегий нет — показываем стандартную «Игрок» (не «Мирный»).
+    const visible = privs.filter(pr => String(pr.name || '').toLowerCase() !== 'игрок');
+    if (p.privacy.showPrivilege === false) {
+      block.style.display = 'none';
+      return;
+    }
+    if (!visible.length) {
+      host.innerHTML = `
+        <div class="priv-card">
+          <div class="priv-name">Игрок</div>
+          <div class="priv-meta">
+            <span>Сервер: <strong>—</strong></span>
+            <span>Срок: <strong>По умолчанию</strong></span>
+          </div>
+          <div class="priv-bar"><div class="priv-bar-fill" style="width:100%"></div></div>
+          <div class="priv-days">&#10022; Стандартная привилегия</div>
+        </div>
+      `;
       return;
     }
 
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
 
-    host.innerHTML = privs.map(pr => {
+    host.innerHTML = visible.map(pr => {
       const expired = pr.expiresAt && pr.expiresAt <= now;
       if (pr.expiresAt == null) {
         // навсегда — полная зелёная полоска

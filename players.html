@@ -59,34 +59,35 @@
         // Имитация сетевой задержки 0.5–1 сек. TODO: реальный запрос
         const delay = 400 + Math.random() * 400;
         timer = setTimeout(() => {
-          spinnerWrap.style.display = 'none';
-          const found = window.searchPlayers(q);
-          if (!found.length) {
-            results.innerHTML = '<div class="text-muted text-center" style="padding:20px">Никто не найден</div>';
-            return;
-          }
-          results.innerHTML = found
-            .map(p => `
-              <button class="glass card player-row" data-name="${MC.esc(p.name)}"
-                style="display:flex;align-items:center;gap:16px;width:100%;text-align:left;cursor:pointer;border-radius:14px">
-                ${p.avatar
-                  ? `<img class="avatar" src="${MC.esc(p.avatar)}" alt="">`
-                  : `<span class="avatar" style="display:flex;align-items:center;justify-content:center;font-weight:800">${MC.esc(p.name[0])}</span>`}
-                <div style="flex:1">
-                  <div style="font-weight:700">${MC.esc(p.name)}</div>
-                  <div class="text-muted" style="font-size:14px">${Number(p.blocks).toLocaleString('ru-RU')} блоков</div>
-                </div>
-                <div style="text-align:right">
-                  <span class="badge ${p.online ? 'online' : 'offline'}"><span class="dot"></span>${p.online ? 'онлайн' : 'офлайн'}</span>
-                  <div style="margin-top:6px;font-size:14px" class="text-muted">${Number(p.coins).toLocaleString('ru-RU')} монет</div>
-                </div>
-              </button>
-            `)
-            .join('');
+          Promise.resolve(window.searchPlayers(q)).then(found => {
+            spinnerWrap.style.display = 'none';
+            if (!found.length) {
+              results.innerHTML = '<div class="text-muted text-center" style="padding:20px">Никто не найден</div>';
+              return;
+            }
+            results.innerHTML = found
+              .map(p => `
+                <button class="glass card player-row" data-name="${MC.esc(p.name)}"
+                  style="display:flex;align-items:center;gap:16px;width:100%;text-align:left;cursor:pointer;border-radius:14px">
+                  ${p.avatar
+                    ? `<img class="avatar" src="${MC.esc(p.avatar)}" alt="">`
+                    : `<span class="avatar" style="display:flex;align-items:center;justify-content:center;font-weight:800">${MC.esc(p.name[0])}</span>`}
+                  <div style="flex:1">
+                    <div style="font-weight:700">${MC.esc(p.name)}</div>
+                    <div class="text-muted" style="font-size:14px">${Number(p.blocks).toLocaleString('ru-RU')} блоков</div>
+                  </div>
+                  <div style="text-align:right">
+                    <span class="badge ${p.online ? 'online' : 'offline'}"><span class="dot"></span>${p.online ? 'онлайн' : 'офлайн'}</span>
+                    <div style="margin-top:6px;font-size:14px" class="text-muted">${Number(p.coins).toLocaleString('ru-RU')} монет</div>
+                  </div>
+                </button>
+              `)
+              .join('');
 
-          results.querySelectorAll('.player-row').forEach(row => {
-            row.addEventListener('click', () => {
-              location.href = 'player.html?name=' + encodeURIComponent(row.dataset.name);
+            results.querySelectorAll('.player-row').forEach(row => {
+              row.addEventListener('click', () => {
+                location.href = 'player.html?name=' + encodeURIComponent(row.dataset.name);
+              });
             });
           });
         }, delay);
