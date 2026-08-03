@@ -342,61 +342,46 @@
 
   function initAppearance(user) {
     const skinCanvas = $('#skin3d');
-    const capeCanvas = $('#cape3d');
+    const capeImg = $('#cape-img');
+    const capeEmpty = $('#cape-empty');
     const skinStatus = $('#skin-status');
     const capeStatus = $('#cape-status');
 
-    window.start3D(skinCanvas, user.skin, user.cape);
+    window.start3D(skinCanvas, user.skin);
 
-    // Рендер плаща крупным планом на втором канвасе (#cape3d)
-    let capeRaf = 0;
-    let capeLoaded = null;
+    // Плащ: показываем как наклонённую картинку (CSS-наклон на .cape-tilt)
     function renderCapePreview(src) {
-      cancelAnimationFrame(capeRaf);
-      Promise.resolve(src ? loadImage(src) : null).then(cape => {
-        capeLoaded = cape;
-        const loop = t => {
-          const W = capeCanvas.width;
-          ctx.clearRect(0, 0, W, W);
-          ctx.imageSmoothingEnabled = false;
-          if (capeLoaded) {
-            ctx.fillStyle = 'rgba(255,255,255,0.05)';
-            ctx.fillRect(0, 0, W, W);
-            const wave = Math.sin(t / 500) * 6;
-            ctx.drawImage(capeLoaded, 0, 0, capeLoaded.width, capeLoaded.height, 70, 30 + wave, 100, 180);
-          } else {
-            ctx.fillStyle = 'rgba(255,255,255,0.05)';
-            ctx.fillRect(0, 0, W, W);
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
-            ctx.fillRect(70, 30, 100, 180);
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
-            ctx.font = '13px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Плащ не загружен', W / 2, 130);
-          }
-          capeRaf = requestAnimationFrame(loop);
+      if (!capeImg) return;
+      if (src) {
+        capeImg.onload = () => {
+          capeImg.style.display = 'block';
+          if (capeEmpty) capeEmpty.style.display = 'none';
         };
-        requestAnimationFrame(loop);
-      });
+        capeImg.onerror = () => {
+          capeImg.style.display = 'none';
+          if (capeEmpty) capeEmpty.style.display = '';
+        };
+        capeImg.src = src;
+      } else {
+        capeImg.removeAttribute('src');
+        capeImg.style.display = 'none';
+        if (capeEmpty) capeEmpty.style.display = '';
+      }
     }
 
-    const ctx = capeCanvas ? capeCanvas.getContext('2d') : null;
-
-    if (capeCanvas) {
-      renderCapePreview(user.cape);
-    }
+    renderCapePreview(user.cape);
 
     // ---------- Загрузка скина (drag-drop) ----------
     makeFileDrop($('#skin-drop'), $('#skin-input'), file => {
-      if (file.type !== 'image/png') {
-        if (skinStatus) skinStatus.textContent = 'Можно загружать только PNG-файлы';
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+        if (skinStatus) skinStatus.textContent = 'Можно загружать только PNG, JPG или WEBP';
         return;
       }
       const reader = new FileReader();
       reader.onload = ev => {
         Auth.updateCurrentUser(u => { u.skin = ev.target.result; });
         const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, fresh.skin, fresh.cape);
+        window.start3D(skinCanvas, fresh.skin);
         if (skinStatus) skinStatus.textContent = 'Скин сохранён';
         refreshSkinButtons();
       };
@@ -409,7 +394,7 @@
       skinReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.skin = null; });
         const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, null, fresh.cape);
+        window.start3D(skinCanvas, null);
         if (skinStatus) skinStatus.textContent = 'Скин сброшен на стандартный';
         refreshSkinButtons();
       });
@@ -426,15 +411,14 @@
 
     // ---------- Загрузка плаща (drag-drop) ----------
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
-      if (file.type !== 'image/png') {
-        if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG-файлы';
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+        if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG, JPG, WEBP или GIF';
         return;
       }
       const reader = new FileReader();
       reader.onload = ev => {
         Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
         const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, fresh.skin, fresh.cape);
         renderCapePreview(fresh.cape);
         if (capeStatus) capeStatus.textContent = 'Плащ сохранён';
         refreshSkinButtons();
@@ -446,8 +430,6 @@
     if (capeReset) {
       capeReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.cape = null; });
-        const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, fresh.skin, null);
         renderCapePreview(null);
         if (capeStatus) capeStatus.textContent = 'Плащ сброшен';
         refreshSkinButtons();

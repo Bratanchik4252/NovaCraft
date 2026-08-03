@@ -40,16 +40,16 @@
 
           <div class="appearance-grid">
             <div class="glass cab-card">
-              <h4>Скин (PNG 64x64)</h4>
+              <h4>Скин (PNG, JPG, WEBP)</h4>
               <canvas class="skin3d-canvas" id="skin3d" width="300" height="356"></canvas>
               <div class="file-drop" id="skin-drop" style="margin-top:14px">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
                 </svg>
                 <div class="fd-title">Перетащи скин сюда</div>
-                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG)</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG, JPG, WEBP)</div>
               </div>
-              <input type="file" id="skin-input" accept="image/png" style="display:none">
+              <input type="file" id="skin-input" accept="image/png,image/jpeg,image/webp" style="display:none">
               <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
                 <button class="btn btn-sm" id="skin-reset" type="button" style="flex:1;display:none">Сбросить скин</button>
               </div>
@@ -57,16 +57,21 @@
             </div>
 
             <div class="glass cab-card">
-              <h4>Плащ (PNG)</h4>
-              <canvas class="skin3d-canvas" id="cape3d" width="300" height="356"></canvas>
+              <h4>Плащ (PNG, JPG, WEBP, GIF)</h4>
+              <div class="cape-tilt" id="cape-tilt">
+                <div class="cape-tilt__content" id="cape-tilt-content">
+                  <img class="cape-tilt__img" id="cape-img" alt="Плащ">
+                </div>
+                <div class="cape-tilt__empty" id="cape-empty">Плащ не загружен</div>
+              </div>
               <div class="file-drop" id="cape-drop" style="margin-top:14px">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
                 </svg>
                 <div class="fd-title">Перетащи плащ сюда</div>
-                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG)</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG, JPG, WEBP, GIF)</div>
               </div>
-              <input type="file" id="cape-input" accept="image/png" style="display:none">
+              <input type="file" id="cape-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
               <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
                 <button class="btn btn-sm" id="cape-reset" type="button" style="flex:1;display:none">Сбросить плащ</button>
               </div>
