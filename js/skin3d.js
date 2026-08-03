@@ -214,13 +214,13 @@
       Object.values(parts).forEach(m => group.add(m));
 
       if (capeImg && capeImg.complete) {
-        const cgeo = new THREE.PlaneGeometry(2, 3, 1, 10);
-        cgeo.translate(0, -1.5, 0);
+        const cgeo = new THREE.PlaneGeometry(2.2, 3.6, 1, 10);
+        cgeo.translate(0, -1.8, 0);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
           map: ctex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, depthWrite: false,
         }));
-        parts.cape.position.set(0, 4.5, -0.55);
+        parts.cape.position.set(0, 5.0, -0.62);
         group.add(parts.cape);
       }
     }

@@ -386,7 +386,8 @@
       const reader = new FileReader();
       reader.onload = ev => {
         Auth.updateCurrentUser(u => { u.skin = ev.target.result; });
-        window.start3D(skinCanvas, ev.target.result, user.cape);
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, fresh.skin, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сохранён';
       };
       reader.readAsDataURL(file);
@@ -397,7 +398,8 @@
     if (skinReset) {
       skinReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.skin = null; });
-        window.start3D(skinCanvas, null, user.cape);
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, null, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сброшен на стандартный';
       });
     }
@@ -411,7 +413,8 @@
       const reader = new FileReader();
       reader.onload = ev => {
         Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
-        window.start3D(skinCanvas, user.skin, ev.target.result);
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, fresh.skin, fresh.cape);
         if (capeStatus) capeStatus.textContent = 'Плащ сохранён';
       };
       reader.readAsDataURL(file);
