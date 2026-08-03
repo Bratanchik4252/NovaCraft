@@ -34,10 +34,13 @@ function _toPublic(u) {
   };
 }
 
-// Кэш найденных профилей из облака (чтобы повторные заходы были мгновенными)
+// Кэш найденных профилей из облака (чтобы повторные заходы были мгновенными).
+// Версия в ключе сбрасывает устаревший кэш после изменения формата данных.
+const DB_CACHE_KEY = 'mc:db-cache:v2';
+const DB_CACHE_TTL = 5 * 60 * 1000; // 5 минут
 function _dbCache() {
   try {
-    return JSON.parse(localStorage.getItem('mc:db-cache') || '{}');
+    return JSON.parse(localStorage.getItem(DB_CACHE_KEY) || '{}');
   } catch (e) {
     return {};
   }
@@ -45,9 +48,19 @@ function _dbCache() {
 function _dbCacheSet(name, pub) {
   try {
     const c = _dbCache();
-    c[String(name).toLowerCase()] = pub;
-    localStorage.setItem('mc:db-cache', JSON.stringify(c));
+    c[String(name).toLowerCase()] = { data: pub, ts: Date.now() };
+    localStorage.setItem(DB_CACHE_KEY, JSON.stringify(c));
   } catch (e) {}
+}
+function _dbCacheGet(name) {
+  try {
+    const entry = _dbCache()[String(name).toLowerCase()];
+    if (!entry) return null;
+    if (Date.now() - (entry.ts || 0) > DB_CACHE_TTL) return null;
+    return entry.data;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Ищет игрока по нику. Возвращает Promise.
@@ -57,8 +70,8 @@ window.findPlayer = function (name) {
   const key = String(name).toLowerCase();
 
   if (window.DB && DB.configured && DB.findPlayerByName) {
-    // Сначала кэш, потом облако
-    const cached = _dbCache()[key];
+    // Сначала кэш (5 мин), потом облако
+    const cached = _dbCacheGet(name);
     if (cached) return Promise.resolve(cached);
     return DB.findPlayerByName(name).then(u => {
       if (!u) return null;
