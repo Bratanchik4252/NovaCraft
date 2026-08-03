@@ -392,6 +392,16 @@
       reader.readAsDataURL(file);
     });
 
+    // ---------- Сброс скина: вернуть дефолтный Стив ----------
+    const skinReset = $('#skin-reset');
+    if (skinReset) {
+      skinReset.addEventListener('click', () => {
+        Auth.updateCurrentUser(u => { u.skin = null; });
+        window.start3D(skinCanvas, null, user.cape);
+        if (skinStatus) skinStatus.textContent = 'Скин сброшен на стандартный';
+      });
+    }
+
     // ---------- Загрузка плаща (drag-drop) ----------
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
       if (file.type !== 'image/png') {

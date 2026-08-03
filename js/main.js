@@ -365,17 +365,11 @@ function buildHeader() {
   // ---------- Уведомления: колокольчик ----------
   initBell(user);
 
-  // ---------- Ссылка «Админ-панель»: видна только админам (уровень 1+) ----------
+  // ---------- Ссылка «Админ-панель» ----------
+  // Показываем всем вошедшим; доступ проверяется на самой странице admin.html
+  // (иначе у старых аккаунтов с устаревшим id в localStorage кнопка не появляется).
   const adminLink = $('#account-admin-link');
-  if (adminLink && user) {
-    (async () => {
-      let level = 0;
-      if (window.DB && DB.configured && DB.adminLevel) {
-        try { level = await DB.adminLevel(user.id, user.name); } catch (e) {}
-      }
-      if (level >= 1) adminLink.style.display = '';
-    })();
-  }
+  if (adminLink && user) adminLink.style.display = '';
 
   // Выпадающее меню «три полоски»
   const dotsBtn = $('#dots-btn');
