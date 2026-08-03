@@ -152,6 +152,10 @@ alter table public.products enable row level security;
 alter table public.team enable row level security;
 alter table public.prefixes enable row level security;
 
+-- Скрипт можно запускать повторно: политики перед созданием удаляются.
+drop policy if exists "profiles_select" on public.profiles;
+drop policy if exists "profiles_insert" on public.profiles;
+drop policy if exists "profiles_update" on public.profiles;
 create policy "profiles_select" on public.profiles
   for select using (true);
 create policy "profiles_insert" on public.profiles
@@ -159,6 +163,9 @@ create policy "profiles_insert" on public.profiles
 create policy "profiles_update" on public.profiles
   for update using (true);
 
+drop policy if exists "logs_select" on public.logs;
+drop policy if exists "logs_insert" on public.logs;
+drop policy if exists "logs_delete" on public.logs;
 create policy "logs_select" on public.logs
   for select using (true);
 create policy "logs_insert" on public.logs
@@ -168,6 +175,10 @@ create policy "logs_delete" on public.logs
 
 -- Уведомления: видит и меняет только владелец,
 -- создавать может любой авторизованный (например комментарий на чужом профиле)
+drop policy if exists "notif_select" on public.notifications;
+drop policy if exists "notif_insert" on public.notifications;
+drop policy if exists "notif_update" on public.notifications;
+drop policy if exists "notif_delete" on public.notifications;
 create policy "notif_select" on public.notifications
   for select using (auth.uid() = user_id);
 create policy "notif_insert" on public.notifications
@@ -179,6 +190,10 @@ create policy "notif_delete" on public.notifications
 
 -- Комментарии: читают все, пишут авторизованные, редактирует/удаляет автор
 -- или владелец профиля (тот, чей ник в profile_name и кто авторизован)
+drop policy if exists "pc_select" on public.profile_comments;
+drop policy if exists "pc_insert" on public.profile_comments;
+drop policy if exists "pc_update" on public.profile_comments;
+drop policy if exists "pc_delete" on public.profile_comments;
 create policy "pc_select" on public.profile_comments
   for select using (true);
 create policy "pc_insert" on public.profile_comments
@@ -192,6 +207,10 @@ create policy "pc_delete" on public.profile_comments
   );
 
 -- Тикеты: видит и меняет только владелец
+drop policy if exists "tickets_select" on public.tickets;
+drop policy if exists "tickets_insert" on public.tickets;
+drop policy if exists "tickets_update" on public.tickets;
+drop policy if exists "tickets_delete" on public.tickets;
 create policy "tickets_select" on public.tickets
   for select using (auth.uid() = owner_id);
 create policy "tickets_insert" on public.tickets
@@ -202,6 +221,11 @@ create policy "tickets_delete" on public.tickets
   for delete using (auth.uid() = owner_id);
 
 -- Публичные данные (сервера, баны, товары, команда, префиксы): все читают, пишет админ/сервис
+drop policy if exists "servers_select"  on public.servers;
+drop policy if exists "bans_select"     on public.bans;
+drop policy if exists "products_select" on public.products;
+drop policy if exists "team_select"     on public.team;
+drop policy if exists "prefixes_select" on public.prefixes;
 create policy "servers_select"  on public.servers  for select using (true);
 create policy "bans_select"     on public.bans     for select using (true);
 create policy "products_select" on public.products for select using (true);
