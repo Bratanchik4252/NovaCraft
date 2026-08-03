@@ -57,23 +57,14 @@
       </form>
 
       <!-- ======== ФОРМА РЕГИСТРАЦИИ ======== -->
-      <!-- Поток: email → код из письма (Supabase OTP) → ник + пароль -->
+      <!-- Поток: email → проверка что email свободен → ник + пароль.
+           Без отправки писем: email просто проверяется, что не занят. -->
       <form id="register-form" novalidate style="display:none">
         <div class="field">
           <label for="reg-email">Email</label>
           <input type="email" id="reg-email" placeholder="you@mail.com" autocomplete="email" required>
           <span class="error-msg" id="reg-email-error"></span>
           <button type="button" class="btn" id="reg-email-send" style="width:100%;margin-top:10px">Подтвердить почту</button>
-        </div>
-
-        <div id="reg-code-step" style="display:none">
-          <div class="field">
-            <label for="reg-code">Код из письма</label>
-            <input type="text" id="reg-code" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-            <span class="text-muted reg-hint" id="reg-code-hint" style="font-size:13px"></span>
-            <span class="error-msg" id="reg-code-error"></span>
-            <button type="button" class="btn" id="reg-code-check" style="width:100%;margin-top:10px">Подтвердить код</button>
-          </div>
         </div>
 
         <div id="reg-main-step" style="display:none">

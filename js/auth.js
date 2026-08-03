@@ -340,18 +340,12 @@
     });
 
     // ---------- Регистрация ----------
-    // Поток: email → код из письма → ник (с предложениями) + пароль.
-    // Если подключён Supabase — код реально приходит на почту (OTP).
-    // Если нет — фолбэк на старую заглушку (код показывается в форме).
-    // Соцсети при регистрации убраны; вход — только по нику/email и паролю.
+    // Поток: email → проверка что email не занят → ник (с предложениями) + пароль.
+    // Без отправки писем. Если Supabase подключён — проверка идёт по облаку,
+    // иначе по localStorage. Соцсети убраны; вход — по нику/email и паролю.
     const regEmail = $('#reg-email');
     const regEmailSend = $('#reg-email-send');
     const regEmailError = $('#reg-email-error');
-    const regCodeStep = $('#reg-code-step');
-    const regCode = $('#reg-code');
-    const regCodeCheck = $('#reg-code-check');
-    const regCodeError = $('#reg-code-error');
-    const regCodeHint = $('#reg-code-hint');
     const regMainStep = $('#reg-main-step');
     const regName = $('#reg-name');
     const regNameError = $('#reg-name-error');
@@ -360,10 +354,17 @@
     const regPassword2 = $('#reg-password2');
 
     let regEmailOk = null;  // подтверждённый email
-    let regCodeValue = '';  // код из «письма» (только для фолбэка)
 
     const sbOn = !!(window.DB && DB.configured);
 
+    function allEmails() {
+      try {
+        const data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
+        return new Set(data.users.map(u => String(u.email || '').toLowerCase()));
+      } catch (e) {
+        return new Set();
+      }
+    }
     function allNames() {
       try {
         const data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
@@ -375,6 +376,16 @@
     function isNickFree(nick) {
       return !allNames().has(String(nick).toLowerCase());
     }
+    // Проверка занятости email: сначала локально, потом в облаке (если Supabase).
+    async function emailTaken(email) {
+      const local = allEmails().has(String(email).toLowerCase());
+      if (local) return true;
+      if (sbOn && DB.emailExists) {
+        const exists = await DB.emailExists(email);
+        if (exists) return true;
+      }
+      return false;
+    }
     // Асинхронная проверка ника: сначала локально, потом в облаке (если Supabase).
     async function isNickFreeAsync(nick) {
       if (!isNickFree(nick)) return false;
@@ -385,77 +396,32 @@
       return true;
     }
 
-    // Шаг 1: отправить код на почту (реально, через Supabase OTP)
+    // Шаг 1: подтвердить email (просто проверка, что он не занят)
     regEmailSend.addEventListener('click', async () => {
       const email = regEmail.value.trim();
       regEmailError.textContent = '';
-      regCodeError.textContent = '';
       if (!validateEmail(email)) {
         regEmailError.textContent = 'Введите корректный email';
         return;
       }
 
-      // Supabase: реальное письмо. Фолбэк: заглушка с кодом в форме.
-      if (sbOn && DB.sendOtp) {
-        regEmailSend.disabled = true;
-        regEmailSend.textContent = 'Отправляем…';
-        const res = await DB.sendOtp(email);
-        regEmailSend.disabled = false;
-        regEmailSend.textContent = 'Подтвердить почту';
-        if (!res.ok) {
-          regEmailError.textContent = res.error;
-          return;
-        }
-        regCodeStep.style.display = 'block';
-        if (regCodeHint) regCodeHint.innerHTML = 'Код отправлен на почту. Введи его из письма:';
-        regCode.value = '';
-        regCode.focus();
-        return;
-      }
+      regEmailSend.disabled = true;
+      regEmailSend.textContent = 'Проверяем…';
+      const taken = await emailTaken(email);
+      regEmailSend.disabled = false;
+      regEmailSend.textContent = 'Подтвердить почту';
 
-      // Фолбэк (без Supabase): код показывается прямо в форме
-      const data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
-      const taken = data.users.some(u => String(u.email).toLowerCase() === email.toLowerCase());
       if (taken) {
+        regEmailError.style.color = '';
         regEmailError.textContent = 'Этот email уже зарегистрирован';
         return;
       }
-      regCodeValue = String(Math.floor(100000 + Math.random() * 900000));
-      regCodeStep.style.display = 'block';
+
+      regEmailOk = email.toLowerCase();
+      regEmailError.style.color = 'var(--success)';
+      regEmailError.textContent = 'Email свободен';
       regEmailSend.disabled = true;
-      if (regCodeHint) regCodeHint.innerHTML = 'Код отправлен на почту (заглушка). Введи его: <code>' + regCodeValue + '</code>';
-      regCode.value = '';
-      regCode.focus();
-    });
-
-    // Шаг 2: проверить код
-    regCodeCheck.addEventListener('click', async () => {
-      regCodeError.textContent = '';
-
-      if (sbOn && DB.verifyOtp) {
-        regCodeCheck.disabled = true;
-        regCodeCheck.textContent = 'Проверяем…';
-        const res = await DB.verifyOtp(regEmail.value.trim(), regCode.value.trim());
-        regCodeCheck.disabled = false;
-        regCodeCheck.textContent = 'Подтвердить код';
-        if (!res.ok) {
-          regCodeError.textContent = res.error;
-          return;
-        }
-        regEmailOk = regEmail.value.trim().toLowerCase();
-        regCodeStep.style.display = 'none';
-        regMainStep.style.display = 'block';
-        regName.focus();
-        return;
-      }
-
-      // Фолбэк: проверка локального кода
-      if (regCode.value.trim() !== regCodeValue) {
-        regCodeError.textContent = 'Неверный код. Проверь и попробуй ещё раз.';
-        return;
-      }
-      regEmailOk = regEmail.value.trim().toLowerCase();
-      regCodeStep.style.display = 'none';
+      regEmailSend.textContent = 'Email подтверждён';
       regMainStep.style.display = 'block';
       regName.focus();
     });
@@ -523,13 +489,7 @@
       if (passErr) return showErr(err, passErr);
       if (pass !== pass2) return showErr(err, 'Пароли не совпадают');
 
-      // Supabase: завершаем регистрацию (пароль + ник). Фолбэк — старая логика.
-      let res;
-      if (sbOn && DB.finishRegistration) {
-        res = await DB.finishRegistration(name, pass);
-      } else {
-        res = await Auth.register(name, regEmailOk, pass);
-      }
+      const res = await Auth.register(name, regEmailOk, pass);
       if (!res.ok) return showErr(err, res.error);
 
       location.href = redirect;

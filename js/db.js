@@ -132,6 +132,16 @@
         return { ok: false, error: 'Не удалось создать аккаунт' };
       }
 
+      // Если «Confirm email» включён в Supabase — сессии не будет, вход не сработает.
+      // В дашборде: Authentication → Sign In / Up → Confirm email = OFF.
+      if (data.session == null) {
+        return {
+          ok: false,
+          error: 'Аккаунт создан, но нужно подтвердить email. Включи настройку «Confirm email» = OFF в Supabase (Authentication → Sign In / Up).',
+          needsConfirm: true,
+        };
+      }
+
       // Создаём профиль в таблице profiles
       const base = userToRow({
         id: userId,
@@ -165,66 +175,16 @@
     },
 
     /**
-     * Отправка реального кода подтверждения на почту (OTP).
-     * Письмо приходит от Supabase. Никакого кода в форме.
+     * Проверка: занят ли email в облаке.
      */
-    async sendOtp(email) {
-      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
-
-      const { data: existing } = await client
+    async emailExists(email) {
+      if (!this.configured) return null;
+      const { data } = await client
         .from('profiles')
         .select('id')
         .eq('email', String(email).toLowerCase())
         .maybeSingle();
-      if (existing) return { ok: false, error: 'Этот email уже зарегистрирован' };
-
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
-      });
-      if (error) return { ok: false, error: 'Не удалось отправить код: ' + error.message };
-      return { ok: true };
-    },
-
-    /**
-     * Проверка кода из письма. При успехе создаётся аккаунт (без пароля).
-     * Дальше пароль и ник выставляем в finishRegistration.
-     */
-    async verifyOtp(email, code) {
-      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
-
-      const { data, error } = await client.auth.verifyOtp({
-        email,
-        token: String(code).trim(),
-        type: 'email',
-      });
-      if (error || !data.user) return { ok: false, error: 'Неверный код' };
-
-      const userId = data.user.id;
-      const tmpName = 'Игрок_' + String(userId).replace(/-/g, '').slice(0, 6);
-
-      await client.from('profiles').upsert({
-        id: userId,
-        name: tmpName,
-        email: data.user.email || String(email).toLowerCase(),
-        balance: [{ serverName: 'Мирный', balance: 0 }],
-        balance_rub: 0,
-        stats: { blocks: 0, mobs: 0, timeHours: 0, timeMinutes: 0 },
-        privileges: [],
-        transactions: [],
-        providers: ['email'],
-        referrals: [],
-        ref_by: null,
-        avatar: null,
-        skin: null,
-        cape: null,
-        banner: null,
-        description: '',
-        privacy: { showStats: true, showTime: true, showPrivilege: true, showDescription: true, showBanner: true },
-        two_fa: false,
-      });
-
-      return { ok: true, userId };
+      return !!data;
     },
 
     /** Ник свободен в облаке? */
@@ -236,54 +196,6 @@
         .ilike('name', String(name))
         .maybeSingle();
       return !data;
-    },
-
-    /**
-     * Завершение регистрации: выставляем пароль и ник.
-     * Вызывается после успешного verifyOtp (сессия уже активна).
-     */
-    async finishRegistration(name, password) {
-      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
-
-      const free = await this.isNameFree(name);
-      if (free === false) return { ok: false, error: 'Этот никнейм уже занят' };
-
-      const { data: { user } } = await client.auth.getUser();
-      if (!user) return { ok: false, error: 'Сначала подтверди email' };
-
-      const { error: pwErr } = await client.auth.updateUser({ password });
-      if (pwErr) return { ok: false, error: pwErr.message };
-
-      await client.from('profiles').update({ name }).eq('id', user.id);
-
-      const { data: row } = await client
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      const u = row ? rowToUser(row) : {
-        id: user.id,
-        name,
-        email: user.email || '',
-        balance: [{ serverName: 'Мирный', balance: 0 }],
-        balanceRub: 0,
-        stats: { blocks: 0, mobs: 0, timeHours: 0, timeMinutes: 0 },
-        privileges: [],
-        transactions: [],
-        providers: ['email'],
-        referrals: [],
-        refBy: null,
-        avatar: null,
-        skin: null,
-        cape: null,
-        banner: null,
-        description: '',
-        privacy: {},
-        twoFA: false,
-      };
-      this.saveLocalSession(u);
-      return { ok: true, user: u };
     },
 
     /**
