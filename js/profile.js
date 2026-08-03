@@ -371,6 +371,25 @@
 
     renderCapePreview(user.cape);
 
+    // ---------- Плащ: интерактивный наклон за мышью (как у loliland.net) ----------
+    const capeTilt = $('#cape-tilt');
+    const capeTiltContent = $('#cape-tilt-content');
+    if (capeTilt && capeTiltContent) {
+      const applyTilt = (clientX, clientY) => {
+        const r = capeTiltContent.getBoundingClientRect();
+        const rx = (clientY - (r.top + r.height / 2)) / 5;
+        const ry = (clientX - (r.left + r.width / 2)) / 5;
+        capeTiltContent.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1, 1, 1)`;
+      };
+      capeTilt.addEventListener('mousemove', e => applyTilt(e.clientX, e.clientY));
+      capeTilt.addEventListener('mouseout', () => {
+        capeTiltContent.style.transform = 'rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1,1,1)';
+      });
+      capeTilt.addEventListener('focusout', () => {
+        capeTiltContent.style.transform = 'rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1,1,1)';
+      });
+    }
+
     // ---------- Загрузка скина (drag-drop) ----------
     makeFileDrop($('#skin-drop'), $('#skin-input'), file => {
       if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {

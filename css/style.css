@@ -1867,9 +1867,12 @@ main {
   align-items: flex-start;
   justify-content: center;
   transform-style: preserve-3d;
-  transform: rotateX(14deg) rotateY(-12deg) rotateZ(-4deg) scale3d(1, 1, 1);
-  animation: cape-wave 3.2s ease-in-out infinite;
+  transform: rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1, 1, 1);
+  transition: transform 0.25s var(--ease);
+  will-change: transform;
 }
+
+.cape-tilt:active .cape-tilt__content { transition: none; }
 
 .cape-tilt__img {
   width: 150px;
@@ -1885,11 +1888,6 @@ main {
   color: var(--muted);
   font-size: 14px;
   opacity: 0.7;
-}
-
-@keyframes cape-wave {
-  0%, 100% { transform: rotateX(14deg) rotateY(-12deg) rotateZ(-4deg) scale3d(1, 1, 1); }
-  50% { transform: rotateX(8deg) rotateY(-8deg) rotateZ(-2deg) scale3d(1, 1, 1); }
 }
 
 .upload-box {
