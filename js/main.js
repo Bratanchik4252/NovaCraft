@@ -82,6 +82,20 @@ function getCurrentUser() {
   return data.users.find(u => u.id === data.session.userId) || null;
 }
 
+// Привилегия с цветом (например красный «Создатель») — красит ник владельца.
+function privilegeColorOf(u) {
+  const privs = Array.isArray(u && u.privileges) ? u.privileges : [];
+  const colored = privs.find(pr => pr.color);
+  return colored ? colored.color : null;
+}
+
+// Топовая привилегия для микро-меню (первая, кроме стандартной «Игрок»).
+function topPrivilegeOf(u) {
+  const privs = Array.isArray(u && u.privileges) ? u.privileges : [];
+  const visible = privs.filter(pr => String(pr.name || '').toLowerCase() !== 'игрок');
+  return visible[0] || null;
+}
+
 async function logoutCurrentUser() {
   // Если Supabase подключён — завершаем сессию в облаке, потом чистим локально.
   if (window.Auth && Auth.logout) {
@@ -113,6 +127,11 @@ function buildHeader() {
     : 0;
   const userRub = user ? Number(user.balanceRub) || 0 : 0;
 
+  // Цвет привилегии красит ник в пилюле и в микро-меню
+  const nickColor = user ? privilegeColorOf(user) : null;
+  const nickStyle = nickColor ? `style="color:${nickColor};text-shadow:0 0 12px ${nickColor}"` : '';
+  const topPriv = user ? topPrivilegeOf(user) : null;
+
   // Колокольчик уведомлений (только для авторизованных)
   const bellBlock = user ? `
     <div class="bell-wrap">
@@ -139,7 +158,7 @@ function buildHeader() {
         ${user.avatar
           ? `<img class="account-avatar" src="${esc(user.avatar)}" alt="">`
           : `<span class="account-avatar account-letter">${esc(user.name[0].toUpperCase())}</span>`}
-        <span class="account-name">${esc(user.name)}</span>
+        <span class="account-name" ${nickStyle}>${esc(user.name)}</span>
         <svg class="account-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
       </button>
@@ -148,7 +167,12 @@ function buildHeader() {
           ${user.avatar
             ? `<img class="account-avatar" src="${esc(user.avatar)}" alt="">`
             : `<span class="account-avatar account-letter">${esc(user.name[0].toUpperCase())}</span>`}
-          <div class="account-nick">${esc(user.name)}</div>
+          <div>
+            <div class="account-nick" ${nickStyle}>${esc(user.name)}</div>
+            ${topPriv
+              ? `<div class="account-priv"${topPriv.color ? ` style="color:${topPriv.color}"` : ''}>${esc(topPriv.name)}</div>`
+              : `<div class="account-priv">Игрок</div>`}
+          </div>
         </div>
         <div class="account-balances">
           <div class="ab-row"><span>Монеты</span><b id="account-coins">${userCoins}</b></div>
@@ -169,6 +193,13 @@ function buildHeader() {
               <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>
             </svg>
             Открыть профиль
+          </a>
+          <a class="account-link" id="account-admin-link" href="admin.html" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+            Админ-панель
           </a>
         </div>
         <button class="account-logout" id="account-logout" type="button">Выйти</button>
@@ -203,7 +234,11 @@ function buildHeader() {
         ${bellBlock}
         ${accountBlock}
         <button class="icon-btn" id="theme-toggle" title="Сменить тему (чёрный / белый)"
-          aria-label="Сменить тему">&#9788;</button>
+          aria-label="Сменить тему">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.6 1 2.5h6c0-.9.4-1.9 1-2.5A6 6 0 0 0 12 3z"/>
+          </svg>
+        </button>
         <button class="icon-btn" id="dots-btn" title="Меню" aria-label="Меню">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" aria-hidden="true">
@@ -235,24 +270,31 @@ function buildHeader() {
   // Бегунок: плавно перемещается к активной кнопке.
   // offsetLeft уже считается от внутреннего отступа (padding) навигации,
   // поэтому вычитать padding НЕ нужно.
-  function moveSlider(btn) {
+  function moveSlider(btn, animate = true) {
     if (!btn || !nav || !indicator) return;
     indicator.style.display = 'block';
     indicator.style.width = btn.offsetWidth + 'px';
     indicator.style.transform = `translateX(${btn.offsetLeft}px)`;
+    if (!animate) {
+      // Начальное позиционирование без анимации, чтобы бегунок не «дергался»
+      // от левого края при каждой пересборке шапки.
+      indicator.classList.add('no-anim');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        indicator.classList.remove('no-anim');
+      }));
+    }
   }
 
   const activeTab = tabs.find(t => t.href === currentPage || (t.activeOn && t.activeOn.includes(currentPage)));
   const activeBtn = activeTab ? $(`.nav-link[data-tab="${activeTab.id}"]`, host) : null;
   if (activeBtn) {
-    moveSlider(activeBtn);
+    moveSlider(activeBtn, false);
   } else if (indicator) {
     indicator.style.display = 'none';
   }
 
   $$('.nav-link', host).forEach(link => {
     link.addEventListener('click', e => {
-      moveSlider(link);
       e.preventDefault();
       transitionTo(link.href);
     });
@@ -317,6 +359,18 @@ function buildHeader() {
 
   // ---------- Уведомления: колокольчик ----------
   initBell(user);
+
+  // ---------- Ссылка «Админ-панель»: видна только админам (уровень 1+) ----------
+  const adminLink = $('#account-admin-link');
+  if (adminLink && user) {
+    (async () => {
+      let level = 0;
+      if (window.DB && DB.configured && DB.adminLevel) {
+        try { level = await DB.adminLevel(user.id); } catch (e) {}
+      }
+      if (level >= 1) adminLink.style.display = '';
+    })();
+  }
 
   // Выпадающее меню «три полоски»
   const dotsBtn = $('#dots-btn');

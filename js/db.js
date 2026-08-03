@@ -49,6 +49,7 @@
       providers: user.providers || ['email'],
       referrals: user.referrals || [],
       ref_by: user.refBy || null,
+      admin_level: Number(user.adminLevel) || 0,
       avatar: user.avatar || null,
       skin: user.skin || null,
       cape: user.cape || null,
@@ -74,6 +75,7 @@
       providers: Array.isArray(row.providers) ? row.providers : ['email'],
       referrals: Array.isArray(row.referrals) ? row.referrals : [],
       refBy: row.ref_by || null,
+      adminLevel: Number(row.admin_level) || 0,
       avatar: row.avatar || null,
       skin: row.skin || null,
       cape: row.cape || null,
@@ -503,6 +505,52 @@
       if (!this.configured) return null;
       const { data, error } = await client.from('prefixes').select('*').order('sort');
       return (error || !data) ? [] : data;
+    },
+
+    // ---------------- АДМИНКА (управление данными) ----------------
+    // Все методы проверяют уровень админа на странице admin.html.
+    // При изменении уровней возвращают { ok, error }.
+
+    // Уровень админа текущего авторизованного пользователя (0/1/2)
+    async adminLevel(userId) {
+      if (!this.configured || !userId) return 0;
+      const { data, error } = await client.from('profiles').select('admin_level').eq('id', userId).maybeSingle();
+      return (error || !data) ? 0 : Number(data.admin_level) || 0;
+    },
+
+    // Найти профиль по нику или uuid — для выдачи админки.
+    // Возвращает { id, name, admin_level } или null.
+    async adminFindUser(query) {
+      if (!this.configured) return null;
+      const q = String(query || '').trim();
+      if (!q) return null;
+      let result = null;
+      const byId = await client.from('profiles').select('id,name,admin_level').eq('id', q).maybeSingle();
+      if (byId.data) result = byId.data;
+      if (!result) {
+        const byName = await client.from('profiles').select('id,name,admin_level').ilike('name', q).maybeSingle();
+        if (byName.data) result = byName.data;
+      }
+      return result ? { id: result.id, name: result.name, adminLevel: Number(result.admin_level) || 0 } : null;
+    },
+
+    // Выдать/снять админку: level = 0/1/2. Возвращает { ok, error }.
+    async adminSetLevel(targetId, level) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error } = await client.from('profiles').update({ admin_level: Number(level) || 0 }).eq('id', targetId);
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+
+    // Общий CRUD для админских таблиц
+    async adminUpsert(table, row) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error } = await client.from(table).upsert(row);
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    async adminDelete(table, id) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error } = await client.from(table).delete().eq('id', id);
+      return error ? { ok: false, error: error.message } : { ok: true };
     },
 
     // ---------------- ЛОГИ / ОНЛАЙН (задел на будущее, для мода) ----------------

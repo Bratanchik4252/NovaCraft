@@ -332,6 +332,10 @@ h4 { font-size: 20px; }
   pointer-events: none;
 }
 
+.slider-indicator.no-anim {
+  transition: none;
+}
+
 /* Правая часть шапки */
 .header-right {
   display: flex;
@@ -1535,6 +1539,13 @@ main {
   white-space: nowrap;
 }
 
+.account-priv {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 .account-balances {
   display: flex;
   flex-direction: column;
@@ -1598,6 +1609,41 @@ main {
 }
 
 .account-logout:hover { background: var(--danger); color: #fff; }
+
+/* ---------- Админ-панель ---------- */
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.adm-table th,
+.adm-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--glass-border);
+  vertical-align: top;
+}
+
+.adm-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.adm-table tr:last-child td { border-bottom: none; }
+
+.adm-found-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+}
 
 /* ---------- Колокольчик уведомлений ---------- */
 .bell-wrap { position: relative; }

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ-панель — NOVACRAFT</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Cpath d='M16 4 4 11v10l12 7 12-7V11z' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Админ-панель</h1>
+      <p>Управление привилегиями, префиксами, банлистом и составом команды.</p>
+    </div>
+
+    <div id="admin-access" class="glass anim-fade-up delay-1" style="padding:32px;text-align:center;display:none">
+      <h3>Нет доступа</h3>
+      <p class="text-muted">Войдите в аккаунт администратора или создателя.</p>
+    </div>
+
+    <div class="cabinet anim-fade-up delay-1" id="admin-panel" style="display:none">
+      <aside class="glass cab-side">
+        <div class="cab-tab active" data-tab="level" style="cursor:pointer" id="admin-tab-level">Уровни админов</div>
+        <div class="cab-tab" data-tab="priv" style="cursor:pointer">Привилегии</div>
+        <div class="cab-tab" data-tab="prefix" style="cursor:pointer">Префиксы</div>
+        <div class="cab-tab" data-tab="ban" style="cursor:pointer">Банлист</div>
+        <div class="cab-tab" data-tab="team" style="cursor:pointer">Команда</div>
+      </aside>
+
+      <section>
+
+        <!-- ============ УРОВНИ АДМИНОВ (только уровень 2) ============ -->
+        <div class="cab-panel active" id="panel-level">
+          <h3>Уровни админов</h3>
+          <p class="text-muted">
+            Уровень <b>1</b> — администратор, уровень <b>2</b> — создатель. Выдавать админку может только создатель (уровень 2).
+          </p>
+
+          <div class="glass cab-card">
+            <h4>Выдать / снять админку</h4>
+            <p class="text-muted" style="font-size:13px;margin-bottom:14px">
+              Введи ник или UUID аккаунта, зарегистрированного на сайте.
+            </p>
+            <div class="field">
+              <label for="adm-query">Ник или UUID</label>
+              <input id="adm-query" placeholder="Например: BuShiZm">
+            </div>
+            <button class="btn btn-sm" id="adm-find" type="button">Найти</button>
+            <span class="error-msg" id="adm-find-status"></span>
+
+            <div id="adm-found" style="display:none;margin-top:14px">
+              <div class="adm-found-user">
+                <span id="adm-found-avatar" class="account-avatar account-letter"></span>
+                <div>
+                  <div id="adm-found-name" style="font-weight:800"></div>
+                  <div class="text-muted" style="font-size:12px" id="adm-found-level"></div>
+                </div>
+              </div>
+              <div class="seg" id="adm-level-btns" style="margin-top:12px">
+                <button class="os-tab" data-lv="0" type="button">Игрок</button>
+                <button class="os-tab" data-lv="1" type="button">Администратор</button>
+                <button class="os-tab" data-lv="2" type="button">Создатель</button>
+              </div>
+              <button class="btn btn-sm btn-primary" id="adm-set" type="button">Применить уровень</button>
+              <span class="error-msg" id="adm-set-status"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ ПРИВИЛЕГИИ ============ -->
+        <div class="cab-panel" id="panel-priv">
+          <h3>Привилегии</h3>
+          <p class="text-muted">Список привилегий. Выдача игрокам появится позже.</p>
+          <div class="glass cab-card" id="priv-list"></div>
+        </div>
+
+        <!-- ============ ПРЕФИКСЫ ============ -->
+        <div class="cab-panel" id="panel-prefix">
+          <h3>Префиксы</h3>
+          <p class="text-muted">Доступные и закрытые префиксы.</p>
+          <div class="glass cab-card" id="prefix-list"></div>
+        </div>
+
+        <!-- ============ БАНЛИСТ ============ -->
+        <div class="cab-panel" id="panel-ban">
+          <h3>Банлист</h3>
+          <p class="text-muted">Заблокированные игроки.</p>
+          <div class="glass cab-card" id="ban-list"></div>
+        </div>
+
+        <!-- ============ КОМАНДА ============ -->
+        <div class="cab-panel" id="panel-team">
+          <h3>Команда</h3>
+          <p class="text-muted">Состав администрации проекта.</p>
+          <div class="glass cab-card" id="team-list"></div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const accessBox = document.getElementById('admin-access');
+      const panel = document.getElementById('admin-panel');
+
+      const user = getCurrentUser();
+      if (!user) {
+        accessBox.style.display = '';
+        accessBox.innerHTML = '<h3>Нет доступа</h3><p class="text-muted">Войдите в аккаунт администратора или создателя.</p>';
+        return;
+      }
+
+      const myLevel = (DB && DB.configured && DB.adminLevel)
+        ? await DB.adminLevel(user.id)
+        : 0;
+      const isCreator = myLevel >= 2;
+      const isAdmin = myLevel >= 1;
+
+      if (!isAdmin) {
+        accessBox.style.display = '';
+        accessBox.innerHTML = '<h3>Нет доступа</h3><p class="text-muted">Ваш аккаунт не является администратором проекта.</p>';
+        return;
+      }
+
+      panel.style.display = '';
+
+      // Вкладки
+      const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
+      tabs.forEach(t => t.addEventListener('click', () => {
+        tabs.forEach(x => x.classList.toggle('active', x === t));
+        panel.querySelectorAll('.cab-panel').forEach(p => {
+          p.classList.toggle('active', p.id === 'panel-' + t.dataset.tab);
+        });
+      }));
+
+      // Секция уровней — только для создателя
+      if (!isCreator) {
+        document.getElementById('panel-level').innerHTML =
+          '<h3>Уровни админов</h3><p class="text-muted">Эту секцию видит только создатель (уровень 2).</p>';
+      }
+
+      // ---------- Выдача админки ----------
+      let foundTarget = null;
+
+      document.getElementById('adm-find').addEventListener('click', async () => {
+        const q = document.getElementById('adm-query').value.trim();
+        const status = document.getElementById('adm-find-status');
+        status.textContent = '';
+        if (!q) { status.textContent = 'Введите ник или UUID'; return; }
+        if (!DB.configured || !DB.adminFindUser) { status.textContent = 'Supabase не настроен'; return; }
+        const res = await DB.adminFindUser(q);
+        if (!res) {
+          status.textContent = 'Аккаунт не найден. У игрока должен быть аккаунт на сайте.';
+          document.getElementById('adm-found').style.display = 'none';
+          foundTarget = null;
+          return;
+        }
+        foundTarget = res;
+        document.getElementById('adm-found-name').textContent = res.name;
+        const lvName = { 0: 'Игрок', 1: 'Администратор', 2: 'Создатель' }[res.adminLevel] || 'Игрок';
+        document.getElementById('adm-found-level').textContent = 'Текущий уровень: ' + lvName;
+        document.getElementById('adm-found-avatar').textContent = (res.name[0] || '?').toUpperCase();
+        document.querySelectorAll('#adm-level-btns .os-tab').forEach(b => {
+          b.classList.toggle('active', Number(b.dataset.lv) === res.adminLevel);
+        });
+        document.getElementById('adm-found').style.display = '';
+      });
+
+      document.querySelectorAll('#adm-level-btns .os-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#adm-level-btns .os-tab').forEach(b => b.classList.toggle('active', b === btn));
+        });
+      });
+
+      document.getElementById('adm-set').addEventListener('click', async () => {
+        const status = document.getElementById('adm-set-status');
+        status.textContent = '';
+        if (!foundTarget) { status.textContent = 'Сначала найдите аккаунт'; return; }
+        const activeBtn = document.querySelector('#adm-level-btns .os-tab.active');
+        const level = Number(activeBtn.dataset.lv);
+        const res = await DB.adminSetLevel(foundTarget.id, level);
+        if (!res.ok) { status.textContent = 'Ошибка: ' + (res.error || 'неизвестна'); return; }
+        status.textContent = 'Уровень обновлён: ' + foundTarget.name + ' → ' + level;
+        foundTarget.adminLevel = level;
+        const lvName = { 0: 'Игрок', 1: 'Администратор', 2: 'Создатель' }[level] || 'Игрок';
+        document.getElementById('adm-found-level').textContent = 'Текущий уровень: ' + lvName;
+      });
+
+      // ---------- Просмотр таблиц (для всех админов) ----------
+      function renderTable(host, rows, cols) {
+        if (!rows.length) {
+          host.innerHTML = '<p class="text-muted" style="padding:8px 0">Пусто. Добавь данные позже.</p>';
+          return;
+        }
+        host.innerHTML = '<table class="adm-table"><thead><tr>' +
+          cols.map(c => '<th>' + MC.esc(c) + '</th>').join('') +
+          '</tr></thead><tbody>' +
+          rows.map(r => '<tr>' + cols.map(c => '<td>' + MC.esc(String(r[c] ?? '—')) + '</td>').join('') + '</tr>').join('') +
+          '</tbody></table>';
+      }
+
+      const load = async () => {
+        let privs = [], prefixes = [], bans = [], team = [];
+        try { privs = (DB.configured && await DB.listProducts()) || []; } catch (e) {}
+        try { prefixes = (DB.configured && await DB.listPrefixes()) || []; } catch (e) {}
+        try { bans = (DB.configured && await DB.listBans()) || []; } catch (e) {}
+        try { team = (DB.configured && await DB.listTeam()) || []; } catch (e) {}
+
+        renderTable(document.getElementById('priv-list'), privs, ['name', 'price', 'description']);
+        renderTable(document.getElementById('prefix-list'), prefixes, ['name', 'color', 'owner', 'public']);
+        renderTable(document.getElementById('ban-list'), bans, ['player', 'reason', 'duration']);
+        renderTable(document.getElementById('team-list'), team, ['name', 'role']);
+      };
+      load();
+    });
+  </script>
+</body>
+</html>

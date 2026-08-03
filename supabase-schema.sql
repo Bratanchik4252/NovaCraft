@@ -21,6 +21,7 @@ create table if not exists public.profiles (
   providers    jsonb not null default '["email"]',
   referrals    jsonb not null default '[]',
   ref_by       text,
+  admin_level  integer not null default 0,   -- 0 — игрок, 1 — администратор, 2 — создатель
   avatar       text,
   skin         text,
   cape         text,
@@ -30,6 +31,9 @@ create table if not exists public.profiles (
   two_fa       boolean not null default false,
   created_at   timestamptz not null default now()
 );
+
+-- Для уже существующей таблицы profiles добавляем колонку уровня админа (безопасно повторять)
+alter table public.profiles add column if not exists admin_level integer not null default 0;
 
 -- ---------- Логи с игрового сервера (мод будет писать сюда) ----------
 create table if not exists public.logs (

@@ -87,7 +87,7 @@
   }
 
   // Скин по умолчанию для фолбэк-рендера (когда у пользователя нет своего)
-  const DEFAULT_SKIN = 'img/skins/Flux_B13_Killer.png';
+  const DEFAULT_SKIN = 'img/skins/steve_original.png';
 
   // ---------- Дефолтный скин (классический Steve, 64x64) ----------
   function makeDefaultSkin() {
@@ -587,7 +587,7 @@
   function initReferral(user) {
     const linkInput = $('#ref-link');
     if (!linkInput) return;
-    const link = location.origin + '/auth.html?ref=' + encodeURIComponent(user.name);
+    const link = location.origin + '/auth?ref=' + encodeURIComponent(user.name);
     linkInput.value = link;
 
     $('#ref-copy').addEventListener('click', () => {
@@ -722,7 +722,6 @@
     if (!host) return;
     const ALL = [
       { id: 'email', name: 'Email / пароль' },
-      { id: 'google', name: 'Google' },
       { id: 'telegram', name: 'Telegram' },
       { id: 'vk', name: 'ВКонтакте' },
       { id: 'yandex', name: 'Яндекс' },
