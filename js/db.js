@@ -325,6 +325,186 @@
       return data.map(rowToUser).filter(Boolean);
     },
 
+    // ---------------- УВЕДОМЛЕНИЯ (колокольчик) ----------------
+    // Возвращает Promise<Array> — уведомления пользователя.
+    async listNotifications(userId) {
+      if (!this.configured) {
+        try { return JSON.parse(localStorage.getItem('mc:notifications:' + userId)) || []; } catch (e) { return []; }
+      }
+      if (!userId) return [];
+      const { data, error } = await client
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error || !data) return [];
+      return data.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        url: n.url,
+        read: !!n.read,
+        time: new Date(n.created_at).getTime(),
+      }));
+    },
+
+    // Создать уведомление. Возвращает Promise<Object|null>.
+    async pushNotification(userId, type, title, body, url) {
+      if (!this.configured || !userId) return null;
+      const { data, error } = await client
+        .from('notifications')
+        .insert({ user_id: userId, type, title: title || '', body: body || '', url: url || null })
+        .select()
+        .single();
+      return error ? null : data;
+    },
+
+    async markNotificationsRead(userId) {
+      if (!this.configured || !userId) return;
+      await client.from('notifications').update({ read: true }).eq('user_id', userId);
+    },
+
+    async removeNotification(userId, id) {
+      if (!this.configured || !userId) return;
+      await client.from('notifications').delete().eq('id', id).eq('user_id', userId);
+    },
+
+    // ---------------- КОММЕНТАРИИ НА ПРОФИЛЯХ ----------------
+    async listComments(profileName) {
+      if (!this.configured) {
+        try {
+          return JSON.parse(localStorage.getItem('mc:profile-comments:' + String(profileName).toLowerCase())) || [];
+        } catch (e) { return []; }
+      }
+      const { data, error } = await client
+        .from('profile_comments')
+        .select('*')
+        .ilike('profile_name', String(profileName))
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error || !data) return [];
+      return data.map(c => ({
+        id: c.id,
+        author: c.author_name,
+        text: c.text,
+        date: new Date(c.created_at).toLocaleDateString('ru-RU') + ' ' +
+              new Date(c.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        ts: new Date(c.created_at).getTime(),
+        edited: !!c.edited,
+        votes: c.votes || {},
+      }));
+    },
+
+    async addComment(profileName, authorName, text) {
+      if (!this.configured) return null;
+      const { data, error } = await client
+        .from('profile_comments')
+        .insert({ profile_name: String(profileName), author_name: authorName, text, votes: {} })
+        .select()
+        .single();
+      if (error || !data) return null;
+      return {
+        id: data.id,
+        author: data.author_name,
+        text: data.text,
+        date: new Date(data.created_at).toLocaleDateString('ru-RU') + ' ' +
+              new Date(data.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        ts: new Date(data.created_at).getTime(),
+        edited: !!data.edited,
+        votes: data.votes || {},
+      };
+    },
+
+    async updateComment(id, patch) {
+      if (!this.configured) return;
+      await client.from('profile_comments').update(patch).eq('id', id);
+    },
+
+    async removeComment(id) {
+      if (!this.configured) return;
+      await client.from('profile_comments').delete().eq('id', id);
+    },
+
+    // ---------------- ОБРАЩЕНИЯ (тикеты) ----------------
+    async listTickets(ownerId) {
+      if (!this.configured) {
+        try { return JSON.parse(localStorage.getItem('mc:tickets')) || []; } catch (e) { return []; }
+      }
+      if (!ownerId) return [];
+      const { data, error } = await client
+        .from('tickets')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+      if (error || !data) return [];
+      return data.map(t => ({
+        id: t.id,
+        owner: t.owner_name,
+        subject: t.subject,
+        status: t.status,
+        createdAt: new Date(t.created_at).toLocaleString('ru-RU'),
+        messages: t.messages || [],
+      }));
+    },
+
+    async createTicket(ownerName, ownerId, subject, messages) {
+      if (!this.configured) return null;
+      const { data, error } = await client
+        .from('tickets')
+        .insert({ owner_name: ownerName, owner_id: ownerId, subject, status: 'open', messages })
+        .select()
+        .single();
+      if (error || !data) return null;
+      return {
+        id: data.id,
+        owner: data.owner_name,
+        subject: data.subject,
+        status: data.status,
+        createdAt: new Date(data.created_at).toLocaleString('ru-RU'),
+        messages: data.messages || [],
+      };
+    },
+
+    async updateTicket(id, patch) {
+      if (!this.configured) return;
+      patch.updated_at = new Date().toISOString();
+      await client.from('tickets').update(patch).eq('id', id);
+    },
+
+    // ---------------- ПУБЛИЧНЫЕ ДАННЫЕ (сервера, баны, магазин, команда, префиксы) ----------------
+    // Фолбэк возвращает null — страницы используют свои заглушки, пока БД пустая.
+    async listServers() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('servers').select('*').order('sort');
+      return (error || !data) ? [] : data;
+    },
+
+    async listBans() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('bans').select('*').order('banned_at', { ascending: false });
+      return (error || !data) ? [] : data;
+    },
+
+    async listProducts() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('products').select('*').order('sort');
+      return (error || !data) ? [] : data;
+    },
+
+    async listTeam() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('team').select('*').order('sort');
+      return (error || !data) ? [] : data;
+    },
+
+    async listPrefixes() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('prefixes').select('*').order('sort');
+      return (error || !data) ? [] : data;
+    },
+
     // ---------------- ЛОГИ / ОНЛАЙН (задел на будущее, для мода) ----------------
     // Сюда мод на сервере будет писать данные. Сайт — читать.
     async insertLog(payload) {

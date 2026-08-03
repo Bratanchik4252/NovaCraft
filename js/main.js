@@ -9,7 +9,7 @@
 'use strict';
 
 // ---------- Конфигурация проекта ----------
-const PROJECT_NAME = 'NOVACRAFT'; // TODO: вставить финальное название проекта
+const PROJECT_NAME = 'NOVACRAFT';
 
 // Основные вкладки шапки.
 // activeOn — страницы, на которых вкладка считается активной (помимо своей).
@@ -219,7 +219,7 @@ function buildHeader() {
           <a href="bans.html">Банлист</a>
           <a href="appeals.html">Обращения</a>
           <div class="dd-sep"></div>
-          <a href="#" data-external>Наш Discord</a>
+          <a href="https://discord.gg/mMhmkgExNM" target="_blank" rel="noopener">Наш Discord</a>
           <a href="#" data-external>Наш Telegram</a>
           <div class="dd-sep"></div>
           <a href="team.html">Команда проекта</a>
@@ -337,7 +337,8 @@ function buildHeader() {
   });
 }
 
-// ---------- Уведомления (хранятся в localStorage mc:notifications:{userId}) ----------
+// ---------- Уведомления (колокольчик) ----------
+// С Supabase хранятся в таблице notifications, без него — в localStorage.
 const NOTIF_TYPES = {
   comment:  { icon: '💬', label: 'Новый комментарий' },
   like:     { icon: '👍', label: 'Реакция на комментарий' },
@@ -347,17 +348,20 @@ const NOTIF_TYPES = {
 };
 
 function loadNotifs(userId) {
-  if (!userId) return [];
-  try { return JSON.parse(localStorage.getItem('mc:notifications:' + userId)) || []; } catch (e) { return []; }
+  if (!userId) return Promise.resolve([]);
+  if (window.DB && DB.configured && DB.listNotifications) {
+    return DB.listNotifications(userId);
+  }
+  try { return Promise.resolve(JSON.parse(localStorage.getItem('mc:notifications:' + userId)) || []); } catch (e) { return Promise.resolve([]); }
 }
 function saveNotifs(userId, arr) {
+  // localStorage-режим: просто сохраняем. Облачный режим управляется методами DB.
   try { localStorage.setItem('mc:notifications:' + userId, JSON.stringify(arr.slice(0, 100))); } catch (e) {}
 }
 function pushNotif(userId, type, title, body, url) {
   if (!userId) return;
   const meta = NOTIF_TYPES[type] || { icon: '🔔', label: 'Уведомление' };
-  const arr = loadNotifs(userId);
-  arr.unshift({
+  const n = {
     id: 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
     type,
     title: title || meta.label,
@@ -365,18 +369,43 @@ function pushNotif(userId, type, title, body, url) {
     url: url || null,
     read: false,
     time: Date.now(),
-  });
-  saveNotifs(userId, arr);
+  };
+  if (window.DB && DB.configured && DB.pushNotification) {
+    DB.pushNotification(userId, type, title || meta.label, body || '', url || null).catch(() => {});
+    return;
+  }
+  try {
+    const arr = JSON.parse(localStorage.getItem('mc:notifications:' + userId)) || [];
+    arr.unshift(n);
+    saveNotifs(userId, arr);
+  } catch (e) {}
 }
 function markNotifsRead(userId) {
+  if (!userId) return;
+  if (window.DB && DB.configured && DB.markNotificationsRead) {
+    DB.markNotificationsRead(userId).catch(() => {});
+    return;
+  }
   saveNotifs(userId, loadNotifs(userId).map(n => { n.read = true; return n; }));
 }
+function removeNotif(userId, id) {
+  if (!userId) return;
+  if (window.DB && DB.configured && DB.removeNotification) {
+    DB.removeNotification(userId, id).catch(() => {});
+    return;
+  }
+  saveNotifs(userId, loadNotifs(userId).filter(n => n.id !== id));
+}
 function notifUserIdByName(nick) {
+  // Уведомление по нику: в облаке ищем профиль, в localStorage — в mc:auth.
+  if (window.DB && DB.configured && DB.findPlayerByName) {
+    return DB.findPlayerByName(nick).then(u => u ? u.id : null).catch(() => null);
+  }
   try {
     const data = JSON.parse(localStorage.getItem(KEYS.auth) || '{"users":[],"session":null}');
     const u = data.users.find(x => String(x.name).toLowerCase() === String(nick).toLowerCase());
-    return u ? u.id : null;
-  } catch (e) { return null; }
+    return Promise.resolve(u ? u.id : null);
+  } catch (e) { return Promise.resolve(null); }
 }
 
 function initBell(user) {
@@ -388,54 +417,53 @@ function initBell(user) {
   if (!btn || !panel || !user) return;
 
   function renderList() {
-    const notifs = loadNotifs(user.id);
-    const unread = notifs.filter(n => !n.read).length;
-    if (badge) {
-      badge.style.display = unread ? '' : 'none';
-      badge.textContent = unread > 99 ? '99+' : String(unread);
-    }
-    if (!notifs.length) {
-      list.innerHTML = '';
-      empty.style.display = '';
-      return;
-    }
-    empty.style.display = 'none';
-    list.innerHTML = notifs.map(n => {
-      const meta = NOTIF_TYPES[n.type] || { icon: '🔔', label: 'Уведомление' };
-      const d = new Date(n.time);
-      const dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' +
-        d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-      return `
-        <div class="bell-item${n.read ? '' : ' unread'}">
-          <div class="bell-item-icon">${meta.icon}</div>
-          <div class="bell-item-main">
-            <div class="bell-item-title">${esc(n.title)}</div>
-            ${n.body ? '<div class="bell-item-body">' + esc(n.body) + '</div>' : ''}
-            <div class="bell-item-date">${dateStr}</div>
+    loadNotifs(user.id).then(notifs => {
+      const unread = notifs.filter(n => !n.read).length;
+      if (badge) {
+        badge.style.display = unread ? '' : 'none';
+        badge.textContent = unread > 99 ? '99+' : String(unread);
+      }
+      if (!notifs.length) {
+        list.innerHTML = '';
+        empty.style.display = '';
+        return;
+      }
+      empty.style.display = 'none';
+      list.innerHTML = notifs.map(n => {
+        const meta = NOTIF_TYPES[n.type] || { icon: '🔔', label: 'Уведомление' };
+        const d = new Date(n.time);
+        const dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' +
+          d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="bell-item${n.read ? '' : ' unread'}">
+            <div class="bell-item-icon">${meta.icon}</div>
+            <div class="bell-item-main">
+              <div class="bell-item-title">${esc(n.title)}</div>
+              ${n.body ? '<div class="bell-item-body">' + esc(n.body) + '</div>' : ''}
+              <div class="bell-item-date">${dateStr}</div>
+            </div>
+            <button class="bell-item-del" data-id="${esc(n.id)}" aria-label="Удалить" title="Удалить" type="button">&times;</button>
           </div>
-          <button class="bell-item-del" data-id="${esc(n.id)}" aria-label="Удалить" title="Удалить" type="button">&times;</button>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
 
-    list.querySelectorAll('.bell-item-del').forEach(b => {
-      b.addEventListener('click', e => {
-        e.stopPropagation();
-        saveNotifs(user.id, loadNotifs(user.id).filter(x => x.id !== b.dataset.id));
-        renderList();
+      list.querySelectorAll('.bell-item-del').forEach(b => {
+        b.addEventListener('click', e => {
+          e.stopPropagation();
+          removeNotif(user.id, b.dataset.id);
+          renderList();
+        });
       });
-    });
-    list.querySelectorAll('.bell-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const del = item.querySelector('.bell-item-del');
-        if (!del) return;
-        const n = loadNotifs(user.id).find(x => x.id === del.dataset.id);
-        if (!n) return;
-        const notifs = loadNotifs(user.id);
-        notifs.forEach(x => { x.read = true; });
-        saveNotifs(user.id, notifs);
-        renderList();
-        if (n.url) location.href = n.url;
+      list.querySelectorAll('.bell-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const del = item.querySelector('.bell-item-del');
+          if (!del) return;
+          const n = notifs.find(x => x.id === del.dataset.id);
+          if (!n) return;
+          markNotifsRead(user.id);
+          renderList();
+          if (n.url) location.href = n.url;
+        });
       });
     });
   }
@@ -527,11 +555,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Публичное API уведомлений ----------
   window.Notif = {
     push: (userId, type, title, body, url) => pushNotif(userId, type, title, body, url),
-    pushToName: (nick, type, title, body, url) => pushNotif(notifUserIdByName(nick), type, title, body, url),
+    pushToName: (nick, type, title, body, url) => {
+      notifUserIdByName(nick).then(id => pushNotif(id, type, title, body, url));
+    },
     list: userId => loadNotifs(userId),
-    countUnread: userId => loadNotifs(userId).filter(n => !n.read).length,
+    countUnread: userId => loadNotifs(userId).then(a => a.filter(n => !n.read).length),
     markAllRead: userId => markNotifsRead(userId),
-    remove: (userId, id) => saveNotifs(userId, loadNotifs(userId).filter(n => n.id !== id)),
-    forCurrent: () => { const u = getCurrentUser(); return u ? loadNotifs(u.id) : []; },
+    remove: (userId, id) => removeNotif(userId, id),
+    forCurrent: () => { const u = getCurrentUser(); return u ? loadNotifs(u.id) : Promise.resolve([]); },
   };
 });

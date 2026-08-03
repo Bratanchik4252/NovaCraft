@@ -215,12 +215,17 @@
   }
 
   // ---------- Комментарии ----------
-  function initComments(p) {
+  async function initComments(p) {
     const key = 'mc:profile-comments:' + String(p.name).toLowerCase();
     const cdKey = 'mc:pc-cd:' + String(p.name).toLowerCase();
     const COOLDOWN_MS = 60 * 1000; // 1 комментарий в минуту на страницу профиля
+    const isCloud = window.DB && DB.configured;
     let comments = [];
-    try { comments = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { comments = []; }
+    if (isCloud && DB.listComments) {
+      try { comments = await DB.listComments(p.name) || []; } catch (e) { comments = []; }
+    } else {
+      try { comments = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { comments = []; }
+    }
 
     // Защита от старых данных: у каждого комментария есть id и votes
     comments.forEach(c => {
@@ -273,6 +278,7 @@
       msgTimer = setTimeout(() => { el.textContent = ''; }, 4000);
     }
 
+    // Локальный кэш-массив. В облачном режиме каждая операция синхронизируется с БД.
     function save() { try { localStorage.setItem(key, JSON.stringify(comments)); } catch (e) {} }
 
     // ---------- Уведомления ----------
@@ -301,6 +307,7 @@
       const cur = voteOf(c, user.name);
       if (cur === value) delete c.votes[user.name];
       else c.votes[user.name] = value;
+      if (isCloud && DB.updateComment) DB.updateComment(c.id, { votes: c.votes }).catch(() => {});
       save();
       if (cur !== value) notifyVote(c, value === 1);
       render();
@@ -347,6 +354,7 @@
         c.text = t;
         c.edited = true;
         c.date = d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        if (isCloud && DB.updateComment) DB.updateComment(c.id, { text: t, edited: true }).catch(() => {});
         setCd();
         save();
         render();
@@ -432,6 +440,7 @@
           delBtn.textContent = 'Удалить';
           delBtn.addEventListener('click', () => {
             comments = comments.filter(x => x.id !== c.id);
+            if (isCloud && DB.removeComment) DB.removeComment(c.id).catch(() => {});
             save();
             render();
           });
@@ -463,13 +472,33 @@
           edited: false,
           votes: {},
         };
-        comments.push(c);
-        setCd();
-        save();
-        text.value = '';
-        notifyOwner(c);
-        render();
-        updateCdHint();
+        if (isCloud && DB.addComment) {
+          DB.addComment(p.name, user.name, t).then(nc => {
+            if (nc && nc.id) c.id = nc.id;
+            comments.push(c);
+            setCd();
+            save();
+            text.value = '';
+            notifyOwner(c);
+            render();
+            updateCdHint();
+          }).catch(() => {
+            comments.push(c);
+            setCd();
+            save();
+            text.value = '';
+            render();
+            updateCdHint();
+          });
+        } else {
+          comments.push(c);
+          setCd();
+          save();
+          text.value = '';
+          notifyOwner(c);
+          render();
+          updateCdHint();
+        }
       });
     } else {
       // Гость: комментарии размыты, поверх — кнопка «Войти», чтобы написать

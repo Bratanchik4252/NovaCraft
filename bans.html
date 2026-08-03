@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -19,10 +19,8 @@
       <h1 class="text-glow">Банлист</h1>
     </div>
 
-    <!-- TODO: получать банлист с бэкенда (/api/bans) -->
-    <div class="glass empty-state anim-fade-up delay-1">
-      <p class="text-muted">Никто ещё не был забанен на сервере</p>
-    </div>
+    <!-- Банлист. Данные из Supabase (таблица bans), пока пусто — заглушка -->
+    <div id="bans-list"></div>
   </main>
 
   <footer id="site-footer"></footer>
@@ -31,5 +29,51 @@
   <script src="js/supabase-config.js"></script>
   <script src="js/db.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const host = document.getElementById('bans-list');
+
+      let bans = [];
+      if (window.DB && DB.configured && DB.listBans) {
+        try { bans = await DB.listBans() || []; } catch (e) { bans = []; }
+      }
+
+      if (!Array.isArray(bans) || !bans.length) {
+        host.innerHTML = '<div class="glass empty-state anim-fade-up"><p class="text-muted">Никто ещё не был забанен на сервере</p></div>';
+        return;
+      }
+
+      host.innerHTML = `
+        <div class="glass anim-fade-up">
+          <table class="bans-table">
+            <thead>
+              <tr>
+                <th>Игрок</th>
+                <th>Причина</th>
+                <th>Администратор</th>
+                <th>Дата</th>
+                <th>До</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bans.filter(b => b.active).map(b => {
+                const until = b.expires_at ? new Date(b.expires_at).toLocaleDateString('ru-RU') : 'Навсегда';
+                const date = b.banned_at ? new Date(b.banned_at).toLocaleDateString('ru-RU') : '—';
+                return `
+                  <tr>
+                    <td class="bans-nick">${MC.esc(b.nick)}</td>
+                    <td>${MC.esc(b.reason || '—')}</td>
+                    <td>${MC.esc(b.banned_by || '—')}</td>
+                    <td>${MC.esc(date)}</td>
+                    <td>${MC.esc(until)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+  </script>
 </body>
 </html>

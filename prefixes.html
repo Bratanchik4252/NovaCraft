@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -20,26 +20,15 @@
       <p>Красочный ник на сервере и в чате. Префиксы появятся вместе с бэкендом.</p>
     </div>
 
-    <!-- TODO: префиксы придут с бэкенда, создание — в админ-панели -->
+    <!-- Префиксы. Данные из Supabase (таблица prefixes) -->
     <div class="pfx-wrap anim-fade-up delay-1">
       <div class="seg pfx-tabs">
         <button class="os-tab active" data-tab="open" type="button">Доступные</button>
         <button class="os-tab" data-tab="closed" type="button">Закрытые</button>
       </div>
 
-      <div id="pfx-open">
-        <div class="pfx-empty">
-          <b>Доступных префиксов пока нет</b>
-          <p>Администрация создаст префиксы после запуска физического сервера. Следи за новостями!</p>
-        </div>
-      </div>
-
-      <div id="pfx-closed" style="display:none">
-        <div class="pfx-empty">
-          <b>Закрытых префиксов пока нет</b>
-          <p>Сюда попадут префиксы за особые заслуги. Они станут видны, когда появятся.</p>
-        </div>
-      </div>
+      <div id="pfx-open"></div>
+      <div id="pfx-closed" style="display:none"></div>
 
       <div class="pfx-note">
         <strong>Как это работает.</strong> Выбери префикс — и он появится рядом с твоим ником в чате
@@ -55,13 +44,38 @@
   <script src="js/db.js"></script>
   <script src="js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const openHost = document.getElementById('pfx-open');
+      const closedHost = document.getElementById('pfx-closed');
+
+      let prefixes = [];
+      if (window.DB && DB.configured && DB.listPrefixes) {
+        try { prefixes = await DB.listPrefixes() || []; } catch (e) { prefixes = []; }
+      }
+
+      function renderCards(list, host, emptyText) {
+        if (!list.length) {
+          host.innerHTML = `<div class="pfx-empty"><b>${MC.esc(emptyText)}</b>
+            <p>Администрация создаст префиксы после запуска физического сервера. Следи за новостями!</p></div>`;
+          return;
+        }
+        host.innerHTML = `<div class="pfx-grid">` + list.map(p => `
+          <div class="pfx-card glass">
+            <span class="pfx-name"${p.color ? ` style="color:${MC.esc(p.color)};text-shadow:0 0 12px ${MC.esc(p.color)}"` : ''}>${MC.esc(p.name)}</span>
+            <span class="pfx-owner">${MC.esc(p.owner || '')}</span>
+          </div>
+        `).join('') + `</div>`;
+      }
+
+      renderCards(prefixes.filter(p => p.public), openHost, 'Доступных префиксов пока нет');
+      renderCards(prefixes.filter(p => !p.public), closedHost, 'Закрытых префиксов пока нет');
+
       $$('.pfx-tabs .os-tab').forEach(btn => {
         btn.addEventListener('click', () => {
           $$('.pfx-tabs .os-tab').forEach(b => b.classList.toggle('active', b === btn));
           const open = btn.dataset.tab === 'open';
-          $('#pfx-open').style.display = open ? '' : 'none';
-          $('#pfx-closed').style.display = open ? 'none' : '';
+          openHost.style.display = open ? '' : 'none';
+          closedHost.style.display = open ? 'none' : '';
         });
       });
     });

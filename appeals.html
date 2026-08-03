@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -74,12 +74,13 @@
   <script src="js/auth.js"></script>
   <script>
     // ==========================================================================
-    // Тикеты обращений (заглушка, хранятся в localStorage).
+    // Тикеты обращений. С Supabase — в таблице tickets, без него — в localStorage.
     // TODO: заменить на API бэкенда /api/tickets (физический сервер).
     // ==========================================================================
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const KEY = 'mc:tickets';
       const ADMIN = 'Администрация';
+      const isCloud = window.DB && DB.configured;
 
       const listGroups = document.getElementById('appeal-groups');
       const threadTitle = document.getElementById('thread-title');
@@ -91,7 +92,7 @@
       const notice = document.getElementById('chat-notice');
       const newBtn = document.getElementById('new-appeal');
 
-      let tickets = load();
+      let tickets = isCloud ? [] : (load() || []);
       let currentId = null;
       let busy = false;
 
@@ -233,6 +234,7 @@
           const time = nowTime();
           ticket.messages.push({ author: ADMIN, text: reply, time });
           save();
+          if (isCloud && DB.updateTicket) DB.updateTicket(ticket.id, { messages: ticket.messages }).catch(() => {});
           const cu = currentUser();
           if (cu && window.Notif) {
             window.Notif.push(cu.id, 'appeal', 'Ответ администрации',
@@ -252,6 +254,7 @@
         if (!text) return;
         t.messages.push({ author: 'Ты', text, time: nowTime() });
         save();
+        if (isCloud && DB.updateTicket) DB.updateTicket(t.id, { messages: t.messages }).catch(() => {});
         renderThread();
         input.value = '';
         adminReply(t, text);
@@ -266,6 +269,7 @@
         t.status = 'closed';
         t.messages.push({ author: ADMIN, text: 'Обращение закрыто. Если появятся вопросы — создай новое.', time: nowTime() });
         save();
+        if (isCloud && DB.updateTicket) DB.updateTicket(t.id, { status: 'closed', messages: t.messages }).catch(() => {});
         renderList();
         renderThread();
       });
@@ -309,6 +313,21 @@
           createdAt: new Date().toLocaleString('ru-RU'),
           messages: [{ author: 'Ты', text: tx, time: nowTime() }],
         };
+        if (isCloud && DB.createTicket) {
+          DB.createTicket(u.name, u.id, s, t.messages).then(nc => {
+            if (nc && nc.id) t.id = nc.id;
+            tickets.push(t);
+            modal.classList.remove('open');
+            openTicket(t.id);
+            adminReply(t, tx);
+          }).catch(() => {
+            tickets.push(t);
+            modal.classList.remove('open');
+            openTicket(t.id);
+            adminReply(t, tx);
+          });
+          return;
+        }
         tickets.push(t);
         save();
         modal.classList.remove('open');
@@ -323,6 +342,14 @@
       if (legacy.length) {
         tickets = tickets.filter(t => t.owner);
         save();
+      }
+      if (isCloud && DB.listTickets) {
+        const cu = currentUser();
+        if (cu) {
+          try { tickets = await DB.listTickets(cu.id) || []; } catch (e) { tickets = []; }
+        } else {
+          tickets = [];
+        }
       }
       renderList();
       const mine = myTickets();

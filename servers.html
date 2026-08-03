@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -30,17 +30,40 @@
   <script src="js/db.js"></script>
   <script src="js/main.js"></script>
   <script>
-    // ---------- Данные серверов (заглушки) ----------
-    // TODO: получать список серверов из бэкенда (/api/servers)
-    // У каждого сервера можно задать массив модов — он раскроется по клику.
-    const VERSIONS = ['1.12.2'];
-    const SERVERS = [];
+    // ---------- Данные серверов ----------
+    // Список берётся из Supabase (таблица servers); заглушки используются,
+    // только если в облаке данных ещё нет. TODO: реальный онлайн с бэкенда.
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const host = document.getElementById('servers-list');
+
+      // Список серверов: если в Supabase есть данные — берём их (таблица servers),
+      // иначе используем локальные заглушки.
+      let VERSIONS = ['1.12.2'];
+      let SERVERS = [];
+      if (window.DB && DB.configured && DB.listServers) {
+        try {
+          const cloud = await DB.listServers();
+          if (Array.isArray(cloud) && cloud.length) {
+            SERVERS = cloud.map(s => ({
+              id: String(s.id),
+              name: s.name,
+              desc: s.description,
+              version: s.version || '1.12.2',
+              mods: s.mods || [],
+              wipe: s.wipe || null,
+              online: Number(s.online) || 0,
+            }));
+            VERSIONS = [...new Set(SERVERS.map(s => s.version))];
+          }
+        } catch (e) {}
+      }
 
       // Онлайн — случайное число 0-100 (заглушка). TODO: реальный онлайн с бэкенда
       SERVERS.forEach(s => { s.online = Math.floor(Math.random() * 101); });
+
+      // ВЕРСИИ и СЕРВЕРА были константами — теперь объявлены выше как let
+      // (сохранено для совместимости с API админки)
 
       // Свернуть/развернуть группу версий
       function toggleGroup(groupEl) {

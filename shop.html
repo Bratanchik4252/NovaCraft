@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -48,8 +48,8 @@
   <script src="js/main.js"></script>
   <script src="js/auth.js"></script>
   <script>
-    // ---------- Товары магазина (заглушки) ----------
-    // TODO: товары с бэкенда + интеграция с платёжной системой
+    // ---------- Товары магазина ----------
+    // Если в Supabase есть товары (таблица products) — берём их, иначе заглушки.
     const SERVERS = [
       { id: 1, name: 'Мирный' },
       { id: 2, name: 'Анархия' },
@@ -82,9 +82,33 @@
       ],
     };
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const grid = document.getElementById('shop-grid');
       const serverName = document.getElementById('shop-server-name');
+
+      // Если в Supabase есть товары (таблица products) — заменяем заглушки.
+      // Сервера берём из таблицы servers, если там есть данные.
+      if (window.DB && DB.configured) {
+        try {
+          const prods = await DB.listProducts();
+          if (Array.isArray(prods) && prods.length) {
+            const priv = prods.filter(p => p.category === 'priv').map(p => ({
+              name: p.name, rub: Number(p.rub) || 0, features: p.features || [],
+            }));
+            const items = prods.filter(p => p.category === 'items').map(p => ({
+              name: p.name, rub: Number(p.rub) || 0, coins: Number(p.coins) || 0, desc: p.desc || '',
+            }));
+            if (priv.length) SHOP.priv = priv;
+            if (items.length) SHOP.items = items;
+          }
+          const srv = await DB.listServers();
+          if (Array.isArray(srv) && srv.length) {
+            SERVERS.length = 0;
+            srv.forEach(s => SERVERS.push({ id: String(s.id), name: s.name }));
+          }
+        } catch (e) {}
+      }
+
       const serverId = new URLSearchParams(location.search).get('server') || '1';
       const currentServer = SERVERS.find(s => String(s.id) === serverId) || SERVERS[0];
       serverName.textContent = 'Сервер «' + currentServer.name + '»';

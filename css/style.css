@@ -1211,6 +1211,29 @@ main {
   font-weight: 500;
 }
 
+/* Банлист */
+.bans-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.bans-table th {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.bans-table td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.bans-table tbody tr:last-child td { border-bottom: none; }
+.bans-nick { font-weight: 800; color: var(--accent); }
+
 /* ---------- 21. Чат обращений (лайв-чат с админами) ---------- */
 .chat-wrap {
   max-width: 760px;
@@ -2195,6 +2218,25 @@ main {
   font-size: 14px;
   line-height: 1.6;
 }
+
+.pfx-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.pfx-card {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+.pfx-name { font-size: 18px; font-weight: 800; }
+.pfx-owner { font-size: 13px; color: var(--muted); }
 
 /* ==========================================================================
    40. Обращения: тикеты (список слева + чат справа)

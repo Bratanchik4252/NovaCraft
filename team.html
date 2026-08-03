@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -20,28 +20,8 @@
       <p>Люди, которые делают NOVACRAFT лучше каждый день.</p>
     </div>
 
-    <!-- TODO: заменить данные на бэкенд /api/team -->
-    <div class="grid-2" style="max-width:820px;margin:0 auto">
-      <article class="glass card reveal" style="text-align:center">
-        <div class="avatar avatar-lg" style="margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800">B</div>
-        <h4 style="margin-top:14px">BuShiZm</h4>
-        <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <span class="role-badge">Разработчик</span>
-          <span class="role-badge">Художник</span>
-          <span class="role-badge">Гейм-дизайнер</span>
-        </div>
-      </article>
-
-      <article class="glass card reveal delay-1" style="text-align:center">
-        <div class="avatar avatar-lg" style="margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800">C</div>
-        <h4 style="margin-top:14px">Crystals</h4>
-        <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <span class="role-badge">Разработчик</span>
-          <span class="role-badge">Гейм-дизайнер</span>
-          <span class="role-badge">Мододел</span>
-        </div>
-      </article>
-    </div>
+    <!-- Команда. Данные из Supabase (таблица team), фолбэк на статичный список -->
+    <div class="grid-2" style="max-width:820px;margin:0 auto" id="team-grid"></div>
   </main>
 
   <footer id="site-footer"></footer>
@@ -50,5 +30,36 @@
   <script src="js/supabase-config.js"></script>
   <script src="js/db.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const host = document.getElementById('team-grid');
+
+      // Заглушки, если в облаке нет данных (или Supabase не подключён)
+      const fallback = [
+        { name: 'BuShiZm', roles: ['Разработчик', 'Художник', 'Гейм-дизайнер'] },
+        { name: 'Crystals', roles: ['Разработчик', 'Гейм-дизайнер', 'Мододел'] },
+      ];
+
+      let members = fallback;
+      if (window.DB && DB.configured && DB.listTeam) {
+        try {
+          const cloud = await DB.listTeam();
+          if (Array.isArray(cloud) && cloud.length) {
+            members = cloud.map(m => ({ name: m.name, roles: m.roles || [] }));
+          }
+        } catch (e) {}
+      }
+
+      host.innerHTML = members.map((m, i) => `
+        <article class="glass card reveal${i ? ' delay-1' : ''}" style="text-align:center">
+          <div class="avatar avatar-lg" style="margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800">${MC.esc(m.name[0].toUpperCase())}</div>
+          <h4 style="margin-top:14px">${MC.esc(m.name)}</h4>
+          <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            ${m.roles.map(r => `<span class="role-badge">${MC.esc(r)}</span>`).join('')}
+          </div>
+        </article>
+      `).join('');
+    });
+  </script>
 </body>
 </html>
