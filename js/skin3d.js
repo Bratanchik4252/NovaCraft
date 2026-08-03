@@ -220,15 +220,16 @@
       Object.values(parts).forEach(m => group.add(m));
 
       if (capeImg && capeImg.complete) {
-        // Ширина чуть больше тела (2), высота ~3.2 — от шеи почти до низа торса
-        const cgeo = new THREE.PlaneGeometry(2.7, 3.2, 1, 8);
-        cgeo.translate(0, -1.6, 0);
+        // Плащ = тонкий куб (как у vanilla): ширина чуть больше тела (2),
+        // высота 3.5 (от шеи чуть ниже талии), толщина 0.2 (~1px скина)
+        const cgeo = new THREE.BoxGeometry(2.5, 3.5, 0.2);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
           map: ctex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
         }));
-        // Крепится к шее: верх вплотную под головой (голова 6..8), свисает по спине
-        parts.cape.position.set(0, 5.9, -0.6);
+        // Крепится к шее: верх на y=6 (низ головы 6..8), свисает до y=2.5
+        parts.cape.position.set(0, 4.25, -0.7);
+        parts.cape.rotation.x = -0.18;
         group.add(parts.cape);
       }
     }
@@ -251,8 +252,8 @@
         parts.head.rotation.y = Math.sin(phase * 0.5) * 0.05;
       }
       if (parts.cape) {
-        parts.cape.position.y = 5.9 + bob;
-        parts.cape.rotation.x = Math.sin(phase) * 0.04;
+        parts.cape.position.y = 4.25 + bob;
+        parts.cape.rotation.x = -0.18 + Math.sin(phase) * 0.04;
       }
 
       if (Date.now() - lastDrag > 2500) modelRot += 0.004;
