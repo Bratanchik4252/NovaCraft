@@ -220,14 +220,15 @@
       Object.values(parts).forEach(m => group.add(m));
 
       if (capeImg && capeImg.complete) {
-        const cgeo = new THREE.PlaneGeometry(2.2, 3.4, 1, 10);
-        cgeo.translate(0, -1.7, 0);
+        // Ширина чуть больше тела (2), высота ~2.8 — от шеи до низа торса
+        const cgeo = new THREE.PlaneGeometry(2.4, 2.8, 1, 8);
+        cgeo.translate(0, -1.4, 0);
         const ctex = regionTexture(capeImg, { x: 0, y: 0, w: capeImg.width, h: capeImg.height });
         parts.cape = new THREE.Mesh(cgeo, new THREE.MeshLambertMaterial({
-          map: ctex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, depthWrite: false,
+          map: ctex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
         }));
-        // Плащ крепится к шее: верх под головой (голова 6..8), свисает по спине
-        parts.cape.position.set(0, 5.7, -0.72);
+        // Крепится к шее: верх вплотную под головой (голова 6..8), свисает по спине
+        parts.cape.position.set(0, 5.9, -0.6);
         group.add(parts.cape);
       }
     }
@@ -250,7 +251,7 @@
         parts.head.rotation.y = Math.sin(phase * 0.5) * 0.05;
       }
       if (parts.cape) {
-        parts.cape.position.y = 4.55 + bob;
+        parts.cape.position.y = 5.9 + bob;
         parts.cape.rotation.z = Math.sin(phase * 0.5) * 0.12;
       }
 
