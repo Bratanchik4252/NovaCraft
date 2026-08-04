@@ -349,24 +349,27 @@
 
     window.start3D(skinCanvas, user.skin);
 
-    // Плащ: показываем как наклонённую картинку (CSS-наклон на .cape-tilt)
+    // Плащ: показываем как наклонённую картинку (CSS-наклон на .cape-tilt).
+    // Превью = наружная грань плаща (вертикальная 10:16), а не весь файл 2:1.
     function renderCapePreview(src) {
       if (!capeImg) return;
-      if (src) {
-        capeImg.onload = () => {
+      if (src && window.getCapeFace) {
+        window.getCapeFace(src, 150, 240).then(faceUrl => {
+          if (!faceUrl) { showEmptyCape(); return; }
           capeImg.style.display = 'block';
           if (capeEmpty) capeEmpty.style.display = 'none';
-        };
-        capeImg.onerror = () => {
-          capeImg.style.display = 'none';
-          if (capeEmpty) capeEmpty.style.display = '';
-        };
-        capeImg.src = src;
+          capeImg.src = faceUrl;
+        });
       } else {
-        capeImg.removeAttribute('src');
-        capeImg.style.display = 'none';
-        if (capeEmpty) capeEmpty.style.display = '';
+        showEmptyCape();
       }
+    }
+
+    function showEmptyCape() {
+      if (!capeImg) return;
+      capeImg.removeAttribute('src');
+      capeImg.style.display = 'none';
+      if (capeEmpty) capeEmpty.style.display = '';
     }
 
     renderCapePreview(user.cape);
@@ -419,28 +422,67 @@
       });
     }
 
-    // Кнопки сброса видны только когда скин/плащ загружены
+    // Кнопки сброса видны только когда скин/плащ/аватарка загружены
     const capeReset = $('#cape-reset');
+    const avatarReset = $('#avatar-reset');
+    const preview = $('#avatar-preview');
     function refreshSkinButtons() {
       const fresh = getCurrentUser() || user;
       if (skinReset) skinReset.style.display = fresh.skin ? '' : 'none';
       if (capeReset) capeReset.style.display = fresh.cape ? '' : 'none';
+      if (avatarReset) avatarReset.style.display = fresh.avatar ? '' : 'none';
     }
     refreshSkinButtons();
 
-    // ---------- Загрузка плаща (drag-drop) ----------
+    // ---------- Загрузка плаща (drag-drop): рамка формы плаща + слайдер типа ----------
+    // Юзер сам умещает картинку в вертикальную рамку (10:16) — то, что в рамке,
+    // и есть плащ. Слайдер выбирает тип плаща, и рамка расширяется под него.
+    const CAPE_CROP_TYPES = [
+      { label: 'Классик 64×32', outW: 100, outH: 160, pack: 1 },
+      { label: 'HD 128×64', outW: 150, outH: 240, pack: 2 },
+      { label: 'UHD 256×128', outW: 200, outH: 320, pack: 4 },
+    ];
+
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
       if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
         if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG, JPG, WEBP или GIF';
         return;
       }
+      if (file.size > MAX_MEDIA) {
+        if (capeStatus) capeStatus.textContent = 'Файл больше 5 МБ';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = ev => {
-        Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
-        const fresh = getCurrentUser() || user;
-        renderCapePreview(fresh.cape);
-        if (capeStatus) capeStatus.textContent = 'Плащ сохранён';
-        refreshSkinButtons();
+        if (file.type === 'image/gif') {
+          // GIF сохраняем как есть (кадрировать гифки не умеем)
+          Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
+          const fresh = getCurrentUser() || user;
+          renderCapePreview(fresh.cape);
+          if (capeStatus) capeStatus.textContent = 'Плащ (GIF) сохранён';
+          refreshSkinButtons();
+          return;
+        }
+        openCrop(ev.target.result, (canvas, type) => {
+          let packed;
+          try {
+            packed = window.packCapeCrop ? window.packCapeCrop(canvas, type.pack) : canvas.toDataURL('image/png');
+          } catch (e) {
+            packed = canvas.toDataURL('image/png');
+          }
+          Auth.updateCurrentUser(u => { u.cape = packed; });
+          const fresh = getCurrentUser() || user;
+          renderCapePreview(fresh.cape);
+          window.start3D(skinCanvas, fresh.skin, fresh.cape);
+          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (' + type.label + ')';
+          refreshSkinButtons();
+        }, {
+          title: 'Настрой плащ — то, что останется в рамке, станет плащем',
+          aspect: 1.6,          // рамка вертикальная 10:16, как плащ на спине (выше шире? нет — выше + уже)
+          types: CAPE_CROP_TYPES,
+          isCape: true,
+          frame: [160, 200, 240], // ширина рамки в модалке под каждый тип
+        });
       };
       reader.readAsDataURL(file);
     });
@@ -450,18 +492,35 @@
       capeReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.cape = null; });
         renderCapePreview(null);
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, fresh.skin, null);
         if (capeStatus) capeStatus.textContent = 'Плащ сброшен';
         refreshSkinButtons();
       });
     }
 
-    // ---------- Аватарка (drag-drop, с кадрированием) ----------
-    const preview = $('#avatar-preview');
+    // ---------- Аватарка (drag-drop, с кадрированием в рамке квадрата) ----------
     const avatarStatus = $('#avatar-status');
     if (preview) {
       preview.src = user.avatar || '';
       preview.style.display = user.avatar ? '' : 'none';
     }
+
+    // Сброс аватарки
+    if (avatarReset) {
+      avatarReset.addEventListener('click', () => {
+        Auth.updateCurrentUser(u => { u.avatar = null; });
+        if (avatarStatus) avatarStatus.textContent = 'Аватарка сброшена';
+        if (preview) { preview.removeAttribute('src'); preview.style.display = 'none'; }
+        refreshSkinButtons();
+      });
+    }
+
+    const AVATAR_CROP_TYPES = [
+      { label: '64×64', outW: 64, outH: 64, pack: 1 },
+      { label: '128×128', outW: 128, outH: 128, pack: 2 },
+      { label: '256×256', outW: 256, outH: 256, pack: 4 },
+    ];
 
     makeFileDrop($('#avatar-drop'), $('#avatar-input'), file => {
       if (file.size > MAX_MEDIA) {
@@ -476,10 +535,17 @@
           if (avatarStatus) avatarStatus.textContent = 'Аватарка (GIF) сохранена';
           if (preview) { preview.src = ev.target.result; preview.style.display = ''; }
         } else {
-          openCrop(ev.target.result, dataUrl => {
+          openCrop(ev.target.result, canvas => {
+            const dataUrl = canvas.toDataURL('image/png');
             Auth.updateCurrentUser(u => { u.avatar = dataUrl; });
             if (avatarStatus) avatarStatus.textContent = 'Аватарка сохранена';
             if (preview) { preview.src = dataUrl; preview.style.display = ''; }
+            refreshSkinButtons();
+          }, {
+            title: 'Настрой аватарку — куда наведёшь рамку, там и лицо',
+            aspect: 1,
+            types: AVATAR_CROP_TYPES,
+            frame: [160, 200, 240],
           });
         }
       };
@@ -487,88 +553,194 @@
     });
   }
 
-  // ---------- Кадрирование аватарки ----------
-  function openCrop(dataUrl, onSave) {
+  // ---------- Кадрирование (универсально: аватарка — квадрат, плащ — рамка 10:16) ----------
+  // cfg: { title, aspect, types:[{label,outW,outH,pack}], isCape, frame:[ширины рамки] }
+  // onSave(canvas, type) — тип выбранного слайдера.
+  function openCrop(dataUrl, onSave, cfg) {
     const overlay = $('#crop-overlay');
     const box = $('#crop-box');
     const img = $('#crop-img');
-    const slider = $('#crop-zoom');
+    const zoomSlider = $('#crop-zoom');
+    const typeSlider = $('#crop-type');
+    const typeValue = $('#crop-type-value');
+    const typeLabel = $('#crop-type-label');
+    const titleEl = $('#crop-title');
     if (!overlay || !box || !img) return;
 
+    cfg = cfg || {};
+    const aspect = cfg.aspect || 1;
+    const types = cfg.types || [{ label: '64×64', outW: 64, outH: 64, pack: 1 }];
+    const frameSizes = cfg.frame || [
+      Math.round(types[0].outW * 2.5),
+      Math.round(types[Math.min(1, types.length - 1)].outW * 2.5),
+      Math.round(types[types.length - 1].outW * 2.5),
+    ];
+    if (titleEl) titleEl.textContent = cfg.title || 'Кадрирование';
+
+    // --- сброс состояния от прошлых открытий (иначе рамка/слушатели «багаются») ---
+    img.onload = null;
+    img.onerror = null;
+    box.style.width = '';
+    box.style.height = '';
+
+    // --- построение модалки ---
+    const onType = function (typeIndex) {
+      const idx = Math.max(0, Math.min(types.length - 1, typeIndex));
+      const fw = frameSizes[idx] || 160;
+      const fh = Math.round(fw * aspect);
+      box.style.width = fw + 'px';
+      box.style.height = fh + 'px';
+      if (typeSlider) {
+        typeSlider.min = 0;
+        typeSlider.max = types.length - 1;
+        typeSlider.value = idx;
+      }
+      if (typeValue) typeValue.textContent = types[idx].label;
+      if (typeLabel) typeLabel.textContent = cfg.isCape ? 'Тип плаща' : 'Размер аватарки';
+      return idx;
+    };
+    onType(types.length - 1); // по умолчанию самый большой (HD/UHD)
+
+    img.style.display = '';
     img.src = dataUrl;
     const natural = { w: 0, h: 0 };
-    const SIZE = 280;
     let baseScale = 1;
     let zoom = 1;
     let dx = 0, dy = 0;
+    let cw = 160, ch = 160;
+    let currentTypeIndex = types.length - 1;
 
     img.onload = () => {
       natural.w = img.naturalWidth;
       natural.h = img.naturalHeight;
-      baseScale = Math.max(SIZE / natural.w, SIZE / natural.h);
+      if (!natural.w || !natural.h) { close(); if (onSave) onSave(null, types[0]); return; }
+      // базовый масштаб = картинка покрывает рамку целиком (без пустот)
+      cw = parseFloat(box.style.width) || 160;
+      ch = parseFloat(box.style.height) || Math.round(cw * aspect);
+      baseScale = Math.max(cw / natural.w, ch / natural.h);
       dx = 0; dy = 0; zoom = 1;
-      slider.value = 100;
+      if (zoomSlider) zoomSlider.value = 100;
       applyTransform();
     };
+    img.onerror = () => { close(); };
 
     function applyTransform() {
       const dispW = natural.w * baseScale * zoom;
       const dispH = natural.h * baseScale * zoom;
-      const maxDx = (dispW - SIZE) / 2;
-      const maxDy = (dispH - SIZE) / 2;
+      const maxDx = (dispW - cw) / 2;
+      const maxDy = (dispH - ch) / 2;
       dx = Math.max(-maxDx, Math.min(maxDx, dx));
       dy = Math.max(-maxDy, Math.min(maxDy, dy));
       img.style.width = dispW + 'px';
       img.style.height = dispH + 'px';
-      img.style.left = (SIZE / 2 - dispW / 2 + dx) + 'px';
-      img.style.top = (SIZE / 2 - dispH / 2 + dy) + 'px';
+      img.style.left = (cw / 2 - dispW / 2 + dx) + 'px';
+      img.style.top = (ch / 2 - dispH / 2 + dy) + 'px';
       img.style.transform = 'none';
     }
 
-    slider.addEventListener('input', () => {
-      zoom = Number(slider.value) / 100;
-      applyTransform();
-    });
+    // Зум
+    if (zoomSlider) {
+      zoomSlider.oninput = () => {
+        zoom = Number(zoomSlider.value) / 100;
+        applyTransform();
+      };
+    }
 
+    // Слайдер типа: рамка расширяется под выбранный тип
+    if (typeSlider) {
+      typeSlider.oninput = () => {
+        currentTypeIndex = Number(typeSlider.value);
+        // сохраняем видимую область: пересчитываем масштаб, чтобы кадрируемая
+        // зона (в координатах исходника) не прыгала
+        const oldSrcW = cw / baseScale / zoom;
+        const oldSrcH = ch / baseScale / zoom;
+        // старая видимая область
+        const srcX = (cw / 2 - dx - natural.w * baseScale * zoom / 2) / baseScale / zoom;
+        const srcY = (ch / 2 - dy - natural.h * baseScale * zoom / 2) / baseScale / zoom;
+        const idx = onType(currentTypeIndex);
+        const newW = parseFloat(box.style.width) || 160;
+        const newH = parseFloat(box.style.height) || Math.round(newW * aspect);
+        cw = newW; ch = newH;
+        // zoom подбираем так, чтобы ширина видимой области в исходнике сохранилась
+        const newZoom = 1;
+        baseScale = Math.max(cw / natural.w, ch / natural.h);
+        zoom = Math.max(1, newZoom);
+        // центрируем по старой точке
+        const cx = srcX + oldSrcW / 2;
+        const cy = srcY + oldSrcH / 2;
+        const dispW2 = natural.w * baseScale * zoom;
+        const dispH2 = natural.h * baseScale * zoom;
+        dx = cw / 2 - cx * baseScale * zoom - dispW2 / 2;
+        dy = ch / 2 - cy * baseScale * zoom - dispH2 / 2;
+        if (zoomSlider) zoomSlider.value = 100;
+        applyTransform();
+      };
+    }
+
+    // Перетаскивание картинки
     let dragging = false, startX = 0, startY = 0, startDx = 0, startDy = 0;
+    const onMove = e => {
+      if (!dragging) return;
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      dx = startDx + (cx - startX);
+      dy = startDy + (cy - startY);
+      applyTransform();
+    };
+    const onUp = () => {
+      dragging = false;
+      box.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
     box.addEventListener('mousedown', e => {
       dragging = true;
       box.classList.add('dragging');
       startX = e.clientX; startY = e.clientY;
       startDx = dx; startDy = dy;
       e.preventDefault();
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
-    document.addEventListener('mousemove', e => {
-      if (!dragging) return;
-      dx = startDx + (e.clientX - startX);
-      dy = startDy + (e.clientY - startY);
-      applyTransform();
-    });
-    document.addEventListener('mouseup', () => {
-      dragging = false;
-      box.classList.remove('dragging');
-    });
+    box.addEventListener('touchstart', e => {
+      dragging = true;
+      box.classList.add('dragging');
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      startDx = dx; startDy = dy;
+      e.preventDefault();
+      document.addEventListener('touchmove', onMove);
+      document.addEventListener('touchend', onUp);
+    }, { passive: false });
 
     function close() {
+      box.style.width = ''; box.style.height = '';
       overlay.classList.remove('open');
-      slider.removeEventListener('input', applyTransform);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
     }
 
     $('#crop-cancel').onclick = close;
 
     $('#crop-save').onclick = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 256;
-      const ctx = canvas.getContext('2d');
+      const type = types[currentTypeIndex] || types[types.length - 1];
       const dispW = natural.w * baseScale * zoom;
       const dispH = natural.h * baseScale * zoom;
-      // Видимая область (квадрат SIZE) в координатах исходника
-      const srcX = (SIZE / 2 - dx - dispW / 2) / baseScale / zoom;
-      const srcY = (SIZE / 2 - dy - dispH / 2) / baseScale / zoom;
-      const srcS = SIZE / baseScale / zoom;
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, srcX, srcY, srcS, srcS, 0, 0, 256, 256);
-      onSave(canvas.toDataURL('image/png'));
+      // Видимая область (рамка cw×ch) в координатах исходника
+      const srcX = (cw / 2 - dx - dispW / 2) / baseScale / zoom;
+      const srcY = (ch / 2 - dy - dispH / 2) / baseScale / zoom;
+      const srcW = cw / baseScale / zoom;
+      const srcH = ch / baseScale / zoom;
+      const canvas = document.createElement('canvas');
+      canvas.width = type.outW; canvas.height = type.outH;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = cfg.isCape ? false : true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+      if (onSave) onSave(canvas, type);
       close();
     };
 

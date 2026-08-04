@@ -57,7 +57,7 @@
             </div>
 
             <div class="glass cab-card">
-              <h4>Плащ (PNG, JPG, WEBP, GIF)</h4>
+              <h4>Плащ (любая картинка)</h4>
               <div class="cape-tilt" id="cape-tilt">
                 <div class="cape-tilt__content" id="cape-tilt-content">
                   <img class="cape-tilt__img" id="cape-img" alt="Плащ">
@@ -68,8 +68,8 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
                 </svg>
-                <div class="fd-title">Перетащи плащ сюда</div>
-                <div class="fd-hint">или нажми, чтобы выбрать файл (PNG, JPG, WEBP, GIF)</div>
+                <div class="fd-title">Перетащи картинку сюда</div>
+                <div class="fd-hint">или нажми, чтобы выбрать файл — область выберешь сам (PNG, JPG, WEBP, GIF)</div>
               </div>
               <input type="file" id="cape-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
               <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
@@ -81,7 +81,7 @@
 
           <div class="text-muted" style="font-size:12px;text-align:center;margin-top:10px">Потяни мышью по 3D-модели, чтобы покрутить</div>
 
-          <div class="glass cab-card">
+            <div class="glass cab-card">
             <h4>Аватарка</h4>
             <p class="text-muted" style="font-size:13px;margin-bottom:16px">
               Картинка или GIF до 5 МБ. Статичную картинку можно обрезать квадратом, GIF сохраняется как есть.
@@ -97,6 +97,9 @@
                   <div class="fd-hint">или нажми, чтобы выбрать файл</div>
                 </div>
                 <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/gif" style="display:none">
+                <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
+                  <button class="btn btn-sm" id="avatar-reset" type="button" style="flex:1;display:none">Сбросить аватарку</button>
+                </div>
                 <div class="text-muted" id="avatar-status" style="font-size:13px;margin-top:8px"></div>
               </div>
             </div>
@@ -236,14 +239,19 @@
 
   <footer id="site-footer"></footer>
 
-  <!-- Модалка кадрирования аватарки -->
+  <!-- Модалка кадрирования аватарки / плаща -->
   <div class="modal-overlay" id="crop-overlay">
-    <div class="modal" style="position:relative;max-width:420px">
-      <h3 style="margin-bottom:16px">Обрезка аватарки</h3>
+    <div class="modal" style="position:relative;max-width:460px">
+      <h3 id="crop-title" style="margin-bottom:16px">Кадрирование</h3>
+      <div class="crop-type-row" id="crop-type-row">
+        <label class="crop-type-label" id="crop-type-label" for="crop-type">Размер</label>
+        <input type="range" id="crop-type" min="0" max="2" step="1" value="1">
+        <span class="crop-type-value" id="crop-type-value"></span>
+      </div>
       <div class="crop-wrap">
         <div class="crop-box" id="crop-box"><img id="crop-img" alt=""></div>
         <input type="range" class="crop-slider" id="crop-zoom" min="100" max="400" value="100">
-        <div style="display:flex;gap:10px;width:100%;max-width:320px">
+        <div style="display:flex;gap:10px;width:100%;max-width:340px">
           <button class="btn btn-sm" id="crop-cancel" type="button" style="flex:1">Отмена</button>
           <button class="btn btn-primary btn-sm" id="crop-save" type="button" style="flex:1">Сохранить</button>
         </div>

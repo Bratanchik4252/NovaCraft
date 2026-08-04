@@ -782,6 +782,7 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow-y: auto;
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s var(--ease);
@@ -1768,6 +1769,9 @@ main {
   gap: 4px;
   position: sticky;
   top: calc(var(--header-h) + 24px);
+  /* backdrop-filter на липком стекле даёт серые полосы при скролле — убираем */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 @media (max-width: 900px) {
@@ -1876,8 +1880,9 @@ main {
 
 .cape-tilt__img {
   width: 150px;
-  height: 225px;
-  image-rendering: pixelated;
+  height: 240px;
+  image-rendering: auto;
+  object-fit: fill;
   transform-origin: top center;
   transform: translateZ(0);
 }
@@ -1914,9 +1919,30 @@ main {
 
 .crop-wrap { display: flex; flex-direction: column; gap: 14px; align-items: center; }
 
+.crop-type-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.crop-type-row input[type="range"] { flex: 1; }
+
+.crop-type-value {
+  min-width: 96px;
+  text-align: right;
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .crop-box {
   width: 280px;
-  height: 280px;
+  height: 160px;
   max-width: 100%;
   border-radius: 16px;
   overflow: hidden;
