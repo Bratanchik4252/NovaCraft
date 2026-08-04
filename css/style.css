@@ -1876,8 +1876,9 @@ main {
 
 .cape-tilt__img {
   width: 150px;
-  height: 225px;
-  image-rendering: pixelated;
+  height: auto;
+  aspect-ratio: 2 / 1;
+  image-rendering: auto;
   transform-origin: top center;
   transform: translateZ(0);
 }

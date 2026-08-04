@@ -170,16 +170,18 @@
     return c.toDataURL('image/png');
   }
 
-  // ---------- Нормализация плаща (как у loliland) ----------
+  // ---------- Нормализация плаща (как у loliland, но HD) ----------
   // Файлы плащей со скин-сайтов часто содержат лишнее: справа «внутреннюю
   // сторону», элитры (два крыла), одиночное крыло. Убираем всё, оставляя
-  // только сам плащ, и приводим его к пропорции 64x32 (как skinview3d ym).
+  // только сам плащ. Плащ сохраняется в родном HD-разрешении (128x64, 256x128
+  // и т.д.) — skinview3d умеет рендерить любые размеры с пропорцией 2:1,
+  // сжимать до 64x32 не нужно (это и давало «корявость»).
   //
-  // Поиск плаща — скользящее окно: по картинке движется рамка (64x32, а для
-  // HiDPI ещё 32x16 и 128x64), в каждой позиции считаем плотность непрозрачных
-  // пикселей. Плащ — это прямоугольник почти целиком заполненный пикселями,
-  // поэтому берём позицию с максимальной плотностью. Элитры/крылья разреженные,
-  // «внутренняя сторона» даёт меньшую плотность, чем лицевая часть плаща.
+  // Поиск плаща — скользящее окно: по картинке движется рамка (64x32, для
+  // HiDPI ещё 128x64/256x128/512x256), в каждой позиции считаем плотность
+  // непрозрачных пикселей. Плащ — это прямоугольник почти целиком заполненный
+  // пикселями, поэтому берём позицию с максимальной плотностью. Элитры/крылья
+  // разреженные, «внутренняя сторона» даёт меньшую плотность, чем лицевая.
   function findCapeWindow(data, w, h) {
     const d = data.data;
 
@@ -196,7 +198,7 @@
     const sum = (x0, y0, x1, y1) =>
       S[y1 * (w + 1) + x1] - S[y0 * (w + 1) + x1] - S[y1 * (w + 1) + x0] + S[y0 * (w + 1) + x0];
 
-    const sizes = [[32, 16], [64, 32], [128, 64]];
+    const sizes = [[32, 16], [64, 32], [128, 64], [256, 128], [512, 256]];
     let best = null;
     for (const [sw, sh] of sizes) {
       if (sw > w || sh > h) continue;
@@ -204,7 +206,7 @@
       for (let y0 = 0; y0 + sh <= h; y0++) {
         for (let x0 = 0; x0 + sw <= w; x0++) {
           const density = sum(x0, y0, x0 + sw, y0 + sh) / area;
-          // При равной плотности предпочитаем большее окно (цельный плащ 64x32,
+          // При равной плотности предпочитаем большее окно (цельный плащ,
           // а не его половину), при полном равенстве — более верхнее/левое
           if (!best ||
               density > best.density ||
@@ -232,15 +234,16 @@
       let idata;
       try { idata = ctx.getImageData(0, 0, w, h); } catch (e) { return dataUrl; }
 
-      // 1) Скользящее окно: ищем прямоугольник 64x32 (или 32x16/128x64),
-      //    плотно заполненный пикселями, — это и есть сам плащ.
+      // 1) Скользящее окно: ищем плотно заполненный прямоугольник — это плащ.
       const win = findCapeWindow(idata, w, h);
 
-      let crop;
+      let crop, outW, outH;
       if (win) {
+        // Плащ найден — сохраняем в родном размере окна (HD, пропорция 2:1)
         crop = { x0: win.x0, x1: win.x0 + win.sw - 1, y0: win.y0, y1: win.y0 + win.sh - 1 };
+        outW = win.sw; outH = win.sh;
       } else {
-        // 2) Запасной вариант: один цельный блок — просто обрезаем прозрачные края
+        // 2) Запасной вариант: один цельный блок — обрезаем прозрачные края
         const d = idata.data;
         const colHas = new Array(w).fill(false);
         const rowHas = new Array(h).fill(false);
@@ -253,15 +256,19 @@
         crop = { x0: colHas.indexOf(true), x1: 0, y0: rowHas.indexOf(true), y1: 0 };
         for (let x = w - 1; x >= 0; x--) if (colHas[x]) { crop.x1 = x; break; }
         for (let y = h - 1; y >= 0; y--) if (rowHas[y]) { crop.y1 = y; break; }
+        // Вписываем блок в холст 2:1, не сжимая ниже исходного размера
+        const cw = crop.x1 - crop.x0 + 1, ch = crop.y1 - crop.y0 + 1;
+        const scale = Math.max(1, Math.ceil(Math.max(cw / 2, ch) / 32));
+        outW = 64 * scale; outH = 32 * scale;
       }
 
       const cw = crop.x1 - crop.x0 + 1, ch = crop.y1 - crop.y0 + 1;
       const out = document.createElement('canvas');
-      out.width = 64; out.height = 32;
+      out.width = outW; out.height = outH;
       const octx = out.getContext('2d');
-      const scale = Math.min(64 / cw, 32 / ch);
+      const scale = Math.min(outW / cw, outH / ch);
       const dw = cw * scale, dh = ch * scale;
-      octx.drawImage(c, crop.x0, crop.y0, cw, ch, (64 - dw) / 2, (32 - dh) / 2, dw, dh);
+      octx.drawImage(c, crop.x0, crop.y0, cw, ch, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
       return out.toDataURL('image/png');
     });
   }
