@@ -173,8 +173,53 @@
   // ---------- Нормализация плаща (как у loliland) ----------
   // Файлы плащей со скин-сайтов часто содержат лишнее: справа «внутреннюю
   // сторону», элитры (два крыла), одиночное крыло. Убираем всё, оставляя
-  // только сам плащ (самый большой цельный непрозрачный блок), и приводим
-  // его к пропорции 64x32 (как skinview3d ym на loliland).
+  // только сам плащ, и приводим его к пропорции 64x32 (как skinview3d ym).
+  //
+  // Поиск плаща — скользящее окно: по картинке движется рамка (64x32, а для
+  // HiDPI ещё 32x16 и 128x64), в каждой позиции считаем плотность непрозрачных
+  // пикселей. Плащ — это прямоугольник почти целиком заполненный пикселями,
+  // поэтому берём позицию с максимальной плотностью. Элитры/крылья разреженные,
+  // «внутренняя сторона» даёт меньшую плотность, чем лицевая часть плаща.
+  function findCapeWindow(data, w, h) {
+    const d = data.data;
+
+    // Интегральное изображение: S[i][j] = сумма непрозрачных пикселей в
+    // прямоугольнике (0,0)-(i,j). Позволяет считать плотность любого окна за O(1).
+    const S = new Float64Array((w + 1) * (h + 1));
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const opaque = d[(y * w + x) * 4 + 3] > 0 ? 1 : 0;
+        S[(y + 1) * (w + 1) + (x + 1)] =
+          opaque + S[y * (w + 1) + (x + 1)] + S[(y + 1) * (w + 1) + x] - S[y * (w + 1) + x];
+      }
+    }
+    const sum = (x0, y0, x1, y1) =>
+      S[y1 * (w + 1) + x1] - S[y0 * (w + 1) + x1] - S[y1 * (w + 1) + x0] + S[y0 * (w + 1) + x0];
+
+    const sizes = [[32, 16], [64, 32], [128, 64]];
+    let best = null;
+    for (const [sw, sh] of sizes) {
+      if (sw > w || sh > h) continue;
+      const area = sw * sh;
+      for (let y0 = 0; y0 + sh <= h; y0++) {
+        for (let x0 = 0; x0 + sw <= w; x0++) {
+          const density = sum(x0, y0, x0 + sw, y0 + sh) / area;
+          // При равной плотности предпочитаем большее окно (цельный плащ 64x32,
+          // а не его половину), при полном равенстве — более верхнее/левое
+          if (!best ||
+              density > best.density ||
+              (density === best.density && (sw * sh > best.sw * best.sh ||
+               (sw * sh === best.sw * best.sh && (y0 < best.y0 || (y0 === best.y0 && x0 < best.x0)))))) {
+            best = { x0, y0, sw, sh, density };
+          }
+        }
+      }
+    }
+    // Плотность меньше ~1/4 — значит цельного плаща не нашли
+    if (best && best.density >= 0.25) return best;
+    return null;
+  }
+
   function normalizeCapeImage(dataUrl) {
     return loadImage(dataUrl).then(img => {
       const c = document.createElement('canvas');
@@ -187,49 +232,27 @@
       let idata;
       try { idata = ctx.getImageData(0, 0, w, h); } catch (e) { return dataUrl; }
 
-      const d = idata.data;
-      const colHas = new Array(w).fill(false);
-      const rowHas = new Array(h).fill(false);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          if (d[(y * w + x) * 4 + 3] > 0) { colHas[x] = true; rowHas[y] = true; }
-        }
-      }
-
-      // Блоки: промежутки между колонками, где нет ни одного непрозрачного пикселя
-      const tiles = [];
-      let start = -1;
-      for (let x = 0; x <= w; x++) {
-        const has = x < w && colHas[x];
-        if (has && start === -1) start = x;
-        if (!has && start !== -1) { tiles.push([start, x - 1]); start = -1; }
-      }
+      // 1) Скользящее окно: ищем прямоугольник 64x32 (или 32x16/128x64),
+      //    плотно заполненный пикселями, — это и есть сам плащ.
+      const win = findCapeWindow(idata, w, h);
 
       let crop;
-      if (tiles.length > 1) {
-        // Ищем блок с наибольшим числом непрозрачных пикселей — это плащ
-        let best = null, bestArea = 0;
-        for (const [x0, x1] of tiles) {
-          let minY = h, maxY = -1, area = 0;
-          for (let y = 0; y < h; y++) {
-            for (let x = x0; x <= x1; x++) {
-              if (d[(y * w + x) * 4 + 3] > 0) {
-                area++;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
-            }
-          }
-          if (area > bestArea) { bestArea = area; best = { x0, x1, y0: minY, y1: maxY }; }
-        }
-        crop = best || { x0: 0, x1: w - 1, y0: 0, y1: h - 1 };
+      if (win) {
+        crop = { x0: win.x0, x1: win.x0 + win.sw - 1, y0: win.y0, y1: win.y0 + win.sh - 1 };
       } else {
-        // Один блок — просто обрезаем прозрачные края
+        // 2) Запасной вариант: один цельный блок — просто обрезаем прозрачные края
+        const d = idata.data;
+        const colHas = new Array(w).fill(false);
+        const rowHas = new Array(h).fill(false);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (d[(y * w + x) * 4 + 3] > 0) { colHas[x] = true; rowHas[y] = true; }
+          }
+        }
+        if (!colHas.some(Boolean)) return dataUrl;
         crop = { x0: colHas.indexOf(true), x1: 0, y0: rowHas.indexOf(true), y1: 0 };
         for (let x = w - 1; x >= 0; x--) if (colHas[x]) { crop.x1 = x; break; }
         for (let y = h - 1; y >= 0; y--) if (rowHas[y]) { crop.y1 = y; break; }
-        if (crop.x0 === -1) crop.x0 = 0;
-        if (crop.y0 === -1) crop.y0 = 0;
       }
 
       const cw = crop.x1 - crop.x0 + 1, ch = crop.y1 - crop.y0 + 1;
