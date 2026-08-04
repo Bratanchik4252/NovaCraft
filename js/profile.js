@@ -170,6 +170,79 @@
     return c.toDataURL('image/png');
   }
 
+  // ---------- Нормализация плаща (как у loliland) ----------
+  // Файлы плащей со скин-сайтов часто содержат лишнее: справа «внутреннюю
+  // сторону», элитры (два крыла), одиночное крыло. Убираем всё, оставляя
+  // только сам плащ (самый большой цельный непрозрачный блок), и приводим
+  // его к пропорции 64x32 (как skinview3d ym на loliland).
+  function normalizeCapeImage(dataUrl) {
+    return loadImage(dataUrl).then(img => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth || img.width;
+      c.height = img.naturalHeight || img.height;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const w = c.width, h = c.height;
+      if (!w || !h) return dataUrl;
+      let idata;
+      try { idata = ctx.getImageData(0, 0, w, h); } catch (e) { return dataUrl; }
+
+      const d = idata.data;
+      const colHas = new Array(w).fill(false);
+      const rowHas = new Array(h).fill(false);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (d[(y * w + x) * 4 + 3] > 0) { colHas[x] = true; rowHas[y] = true; }
+        }
+      }
+
+      // Блоки: промежутки между колонками, где нет ни одного непрозрачного пикселя
+      const tiles = [];
+      let start = -1;
+      for (let x = 0; x <= w; x++) {
+        const has = x < w && colHas[x];
+        if (has && start === -1) start = x;
+        if (!has && start !== -1) { tiles.push([start, x - 1]); start = -1; }
+      }
+
+      let crop;
+      if (tiles.length > 1) {
+        // Ищем блок с наибольшим числом непрозрачных пикселей — это плащ
+        let best = null, bestArea = 0;
+        for (const [x0, x1] of tiles) {
+          let minY = h, maxY = -1, area = 0;
+          for (let y = 0; y < h; y++) {
+            for (let x = x0; x <= x1; x++) {
+              if (d[(y * w + x) * 4 + 3] > 0) {
+                area++;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+            }
+          }
+          if (area > bestArea) { bestArea = area; best = { x0, x1, y0: minY, y1: maxY }; }
+        }
+        crop = best || { x0: 0, x1: w - 1, y0: 0, y1: h - 1 };
+      } else {
+        // Один блок — просто обрезаем прозрачные края
+        crop = { x0: colHas.indexOf(true), x1: 0, y0: rowHas.indexOf(true), y1: 0 };
+        for (let x = w - 1; x >= 0; x--) if (colHas[x]) { crop.x1 = x; break; }
+        for (let y = h - 1; y >= 0; y--) if (rowHas[y]) { crop.y1 = y; break; }
+        if (crop.x0 === -1) crop.x0 = 0;
+        if (crop.y0 === -1) crop.y0 = 0;
+      }
+
+      const cw = crop.x1 - crop.x0 + 1, ch = crop.y1 - crop.y0 + 1;
+      const out = document.createElement('canvas');
+      out.width = 64; out.height = 32;
+      const octx = out.getContext('2d');
+      const scale = Math.min(64 / cw, 32 / ch);
+      const dw = cw * scale, dh = ch * scale;
+      octx.drawImage(c, crop.x0, crop.y0, cw, ch, (64 - dw) / 2, (32 - dh) / 2, dw, dh);
+      return out.toDataURL('image/png');
+    });
+  }
+
   // ---------- 3D-превью скина (ФОЛБЭК, если three.js не загрузился) ----------
   // Персонаж собран из кубиков, текстуры — скин 64x64. Персонаж «шагает»
   // на месте, крутится перетаскиванием мыши и медленно вращается сам.
@@ -347,7 +420,7 @@
     const skinStatus = $('#skin-status');
     const capeStatus = $('#cape-status');
 
-    window.start3D(skinCanvas, user.skin);
+    window.start3D(skinCanvas, user.skin, user.cape);
 
     // Плащ: показываем как наклонённую картинку (CSS-наклон на .cape-tilt)
     function renderCapePreview(src) {
@@ -400,7 +473,7 @@
       reader.onload = ev => {
         Auth.updateCurrentUser(u => { u.skin = ev.target.result; });
         const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, fresh.skin);
+        window.start3D(skinCanvas, fresh.skin, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сохранён';
         refreshSkinButtons();
       };
@@ -413,7 +486,7 @@
       skinReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.skin = null; });
         const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, null);
+        window.start3D(skinCanvas, null, fresh.cape);
         if (skinStatus) skinStatus.textContent = 'Скин сброшен на стандартный';
         refreshSkinButtons();
       });
@@ -429,6 +502,8 @@
     refreshSkinButtons();
 
     // ---------- Загрузка плаща (drag-drop) ----------
+    // Файл пропускаем через нормализацию (как у loliland): вырезаем плащ из
+    // шаблонов с элитрами, обрезаем лишнее, приводим к пропорции 64x32.
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
       if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
         if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG, JPG, WEBP или GIF';
@@ -436,11 +511,15 @@
       }
       const reader = new FileReader();
       reader.onload = ev => {
-        Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
-        const fresh = getCurrentUser() || user;
-        renderCapePreview(fresh.cape);
-        if (capeStatus) capeStatus.textContent = 'Плащ сохранён';
-        refreshSkinButtons();
+        if (capeStatus) capeStatus.textContent = 'Обработка плаща…';
+        normalizeCapeImage(ev.target.result).then(clean => {
+          Auth.updateCurrentUser(u => { u.cape = clean; });
+          const fresh = getCurrentUser() || user;
+          renderCapePreview(fresh.cape);
+          window.start3D(skinCanvas, fresh.skin, fresh.cape);
+          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (обрезан по плащу)';
+          refreshSkinButtons();
+        });
       };
       reader.readAsDataURL(file);
     });
@@ -450,6 +529,8 @@
       capeReset.addEventListener('click', () => {
         Auth.updateCurrentUser(u => { u.cape = null; });
         renderCapePreview(null);
+        const fresh = getCurrentUser() || user;
+        window.start3D(skinCanvas, fresh.skin, null);
         if (capeStatus) capeStatus.textContent = 'Плащ сброшен';
         refreshSkinButtons();
       });
