@@ -560,9 +560,8 @@
     const overlay = $('#crop-overlay');
     const box = $('#crop-box');
     const img = $('#crop-img');
-    const zoomSlider = $('#crop-zoom');
-    const typeSlider = $('#crop-type');
-    const typeValue = $('#crop-type-value');
+    const typePills = $('#crop-type-pills');
+    const zoomPills = $('#crop-zoom-pills');
     const typeLabel = $('#crop-type-label');
     const titleEl = $('#crop-title');
     if (!overlay || !box || !img) return;
@@ -576,31 +575,61 @@
       Math.round(types[types.length - 1].outW * 2.5),
     ];
     if (titleEl) titleEl.textContent = cfg.title || 'Кадрирование';
+    if (typeLabel) typeLabel.textContent = cfg.isCape ? 'Тип плаща' : 'Размер аватарки';
 
-    // --- сброс состояния от прошлых открытий (иначе рамка/слушатели «багаются») ---
-    img.onload = null;
-    img.onerror = null;
-    box.style.width = '';
-    box.style.height = '';
-
-    // --- построение модалки ---
-    const onType = function (typeIndex) {
-      const idx = Math.max(0, Math.min(types.length - 1, typeIndex));
-      const fw = frameSizes[idx] || 160;
-      const fh = Math.round(fw * aspect);
-      box.style.width = fw + 'px';
-      box.style.height = fh + 'px';
-      if (typeSlider) {
-        typeSlider.min = 0;
-        typeSlider.max = types.length - 1;
-        typeSlider.value = idx;
+    // ---------- Слайдер-навигация: пилюли + бегающий индикатор (как в шапке) ----------
+    function buildPills(host, labels, onChange) {
+      if (!host) return { move() {} };
+      host.innerHTML = labels.map((l, i) =>
+        `<button type="button" class="crop-pill" data-i="${i}" role="radio">${MC.esc(l)}</button>`
+      ).join('') + '<span class="crop-pills-ind" aria-hidden="true"></span>';
+      const ind = host.querySelector('.crop-pills-ind');
+      host.querySelectorAll('.crop-pill').forEach(btn => {
+        btn.addEventListener('click', () => move(Number(btn.dataset.i), true, true));
+      });
+      function move(i, animate = true, fire = false) {
+        const btn = host.querySelector(`[data-i="${i}"]`);
+        if (!btn || !ind) return;
+        host.querySelectorAll('.crop-pill').forEach((b, bi) => b.classList.toggle('active', bi === i));
+        ind.style.width = btn.offsetWidth + 'px';
+        ind.style.transform = `translateX(${btn.offsetLeft}px)`;
+        if (!animate) {
+          ind.classList.add('no-anim');
+          requestAnimationFrame(() => requestAnimationFrame(() => ind.classList.remove('no-anim')));
+        }
+        if (fire && onChange) onChange(i);
       }
-      if (typeValue) typeValue.textContent = types[idx].label;
-      if (typeLabel) typeLabel.textContent = cfg.isCape ? 'Тип плаща' : 'Размер аватарки';
-      return idx;
-    };
-    onType(types.length - 1); // по умолчанию самый большой (HD/UHD)
+      move(0, false);
+      return { move };
+    }
 
+    const ZOOM_STEPS = [100, 150, 200, 300, 400];
+    const typePill = buildPills(typePills, types.map(t => t.label), idx => {
+      // сохраняем видимую зону (центр в исходнике) при смене типа
+      const v = natural.w ? visibleSrc() : null;
+      currentTypeIndex = Math.max(0, Math.min(types.length - 1, idx));
+      applyFrame(currentTypeIndex);
+      cw = parseFloat(box.style.width) || 160;
+      ch = parseFloat(box.style.height) || Math.round(cw * aspect);
+      if (v && natural.w) {
+        baseScale = Math.max(cw / natural.w, ch / natural.h);
+        const scale2 = baseScale * zoom;
+        const dispW2 = natural.w * scale2;
+        const dispH2 = natural.h * scale2;
+        dx = dispW2 / 2 - (v.srcX + v.srcW / 2) * scale2;
+        dy = dispH2 / 2 - (v.srcY + v.srcH / 2) * scale2;
+      } else {
+        baseScale = Math.max(cw / natural.w, ch / natural.h);
+        dx = 0; dy = 0;
+      }
+      applyTransform();
+    });
+    const zoomPill = buildPills(zoomPills, ZOOM_STEPS.map(p => p + '%'), i => {
+      zoom = ZOOM_STEPS[i] / 100;
+      applyTransform();
+    });
+
+    // ---------- состояние ----------
     img.style.display = '';
     img.src = dataUrl;
     const natural = { w: 0, h: 0 };
@@ -608,7 +637,18 @@
     let zoom = 1;
     let dx = 0, dy = 0;
     let cw = 160, ch = 160;
-    let currentTypeIndex = types.length - 1;
+    let currentTypeIndex = 0;
+
+    // ---------- рамка под выбранный тип ----------
+    function applyFrame(idx) {
+      const fw = frameSizes[idx] || 160;
+      const fh = Math.round(fw * aspect);
+      box.style.width = fw + 'px';
+      box.style.height = fh + 'px';
+      typePill.move(idx);
+    }
+    currentTypeIndex = types.length - 1;
+    applyFrame(currentTypeIndex); // по умолчанию самый большой (HD/UHD)
 
     img.onload = () => {
       natural.w = img.naturalWidth;
@@ -619,10 +659,23 @@
       ch = parseFloat(box.style.height) || Math.round(cw * aspect);
       baseScale = Math.max(cw / natural.w, ch / natural.h);
       dx = 0; dy = 0; zoom = 1;
-      if (zoomSlider) zoomSlider.value = 100;
+      zoomPill.move(0);
       applyTransform();
     };
     img.onerror = () => { close(); };
+
+    // ---------- видимая область (рамка cw×ch) в координатах исходника ----------
+    function visibleSrc() {
+      const scale = baseScale * zoom;
+      const dispW = natural.w * scale;
+      const dispH = natural.h * scale;
+      return {
+        srcX: (dispW / 2 - cw / 2 - dx) / scale,
+        srcY: (dispH / 2 - ch / 2 - dy) / scale,
+        srcW: cw / scale,
+        srcH: ch / scale,
+      };
+    }
 
     function applyTransform() {
       const dispW = natural.w * baseScale * zoom;
@@ -638,46 +691,7 @@
       img.style.transform = 'none';
     }
 
-    // Зум
-    if (zoomSlider) {
-      zoomSlider.oninput = () => {
-        zoom = Number(zoomSlider.value) / 100;
-        applyTransform();
-      };
-    }
-
-    // Слайдер типа: рамка расширяется под выбранный тип
-    if (typeSlider) {
-      typeSlider.oninput = () => {
-        currentTypeIndex = Number(typeSlider.value);
-        // сохраняем видимую область: пересчитываем масштаб, чтобы кадрируемая
-        // зона (в координатах исходника) не прыгала
-        const oldSrcW = cw / baseScale / zoom;
-        const oldSrcH = ch / baseScale / zoom;
-        // старая видимая область
-        const srcX = (cw / 2 - dx - natural.w * baseScale * zoom / 2) / baseScale / zoom;
-        const srcY = (ch / 2 - dy - natural.h * baseScale * zoom / 2) / baseScale / zoom;
-        const idx = onType(currentTypeIndex);
-        const newW = parseFloat(box.style.width) || 160;
-        const newH = parseFloat(box.style.height) || Math.round(newW * aspect);
-        cw = newW; ch = newH;
-        // zoom подбираем так, чтобы ширина видимой области в исходнике сохранилась
-        const newZoom = 1;
-        baseScale = Math.max(cw / natural.w, ch / natural.h);
-        zoom = Math.max(1, newZoom);
-        // центрируем по старой точке
-        const cx = srcX + oldSrcW / 2;
-        const cy = srcY + oldSrcH / 2;
-        const dispW2 = natural.w * baseScale * zoom;
-        const dispH2 = natural.h * baseScale * zoom;
-        dx = cw / 2 - cx * baseScale * zoom - dispW2 / 2;
-        dy = ch / 2 - cy * baseScale * zoom - dispH2 / 2;
-        if (zoomSlider) zoomSlider.value = 100;
-        applyTransform();
-      };
-    }
-
-    // Перетаскивание картинки
+    // ---------- перетаскивание картинки ----------
     let dragging = false, startX = 0, startY = 0, startDx = 0, startDy = 0;
     const onMove = e => {
       if (!dragging) return;
@@ -727,19 +741,13 @@
 
     $('#crop-save').onclick = () => {
       const type = types[currentTypeIndex] || types[types.length - 1];
-      const dispW = natural.w * baseScale * zoom;
-      const dispH = natural.h * baseScale * zoom;
-      // Видимая область (рамка cw×ch) в координатах исходника
-      const srcX = (cw / 2 - dx - dispW / 2) / baseScale / zoom;
-      const srcY = (ch / 2 - dy - dispH / 2) / baseScale / zoom;
-      const srcW = cw / baseScale / zoom;
-      const srcH = ch / baseScale / zoom;
+      const v = visibleSrc();
       const canvas = document.createElement('canvas');
       canvas.width = type.outW; canvas.height = type.outH;
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = cfg.isCape ? false : true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, v.srcX, v.srcY, v.srcW, v.srcH, 0, 0, canvas.width, canvas.height);
       if (onSave) onSave(canvas, type);
       close();
     };

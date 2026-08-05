@@ -241,16 +241,20 @@
 
   <!-- Модалка кадрирования аватарки / плаща -->
   <div class="modal-overlay" id="crop-overlay">
-    <div class="modal" style="position:relative;max-width:460px">
-      <h3 id="crop-title" style="margin-bottom:16px">Кадрирование</h3>
-      <div class="crop-type-row" id="crop-type-row">
-        <label class="crop-type-label" id="crop-type-label" for="crop-type">Размер</label>
-        <input type="range" id="crop-type" min="0" max="2" step="1" value="1">
-        <span class="crop-type-value" id="crop-type-value"></span>
+    <div class="modal" style="position:relative;max-width:480px">
+      <h3 id="crop-title" style="margin-bottom:14px">Кадрирование</h3>
+
+      <div class="crop-pills-row">
+        <span class="crop-pills-label" id="crop-type-label">Тип</span>
+        <div class="crop-pills" id="crop-type-pills" role="radiogroup"></div>
       </div>
+      <div class="crop-pills-row">
+        <span class="crop-pills-label">Масштаб</span>
+        <div class="crop-pills" id="crop-zoom-pills" role="radiogroup"></div>
+      </div>
+
       <div class="crop-wrap">
         <div class="crop-box" id="crop-box"><img id="crop-img" alt=""></div>
-        <input type="range" class="crop-slider" id="crop-zoom" min="100" max="400" value="100">
         <div style="display:flex;gap:10px;width:100%;max-width:340px">
           <button class="btn btn-sm" id="crop-cancel" type="button" style="flex:1">Отмена</button>
           <button class="btn btn-primary btn-sm" id="crop-save" type="button" style="flex:1">Сохранить</button>

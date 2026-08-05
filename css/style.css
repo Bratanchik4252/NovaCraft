@@ -1919,30 +1919,76 @@ main {
 
 .crop-wrap { display: flex; flex-direction: column; gap: 14px; align-items: center; }
 
-.crop-type-row {
+/* Ряд пилюль-слайдера (как навигация в шапке: пилюли + бегающий индикатор) */
+.crop-pills-row {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   margin: 0 auto 14px;
-  color: var(--muted);
-  font-size: 14px;
 }
 
-.crop-type-row input[type="range"] { flex: 1; }
-
-.crop-type-value {
-  min-width: 96px;
-  text-align: right;
-  color: var(--text);
-  font-weight: 600;
+.crop-pills-label {
+  color: var(--muted);
+  font-size: 14px;
   white-space: nowrap;
+}
+
+.crop-pills {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  margin: 0 auto;
+  border-radius: 9999px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.crop-pill {
+  position: relative;
+  z-index: 2;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s var(--ease);
+}
+
+.crop-pill:hover { color: var(--text); }
+
+.crop-pill.active { color: var(--text); }
+
+.crop-pills-ind {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  height: calc(100% - 10px);
+  width: 0;
+  border-radius: 9999px;
+  background: var(--glass-bg-hover);
+  border: 1px solid var(--glass-border-hover);
+  box-shadow: var(--shadow);
+  z-index: 1;
+  transition: transform 0.35s var(--ease), width 0.35s var(--ease);
+  pointer-events: none;
+}
+
+.crop-pills-ind.no-anim {
+  transition: none;
 }
 
 .crop-box {
   width: 280px;
-  height: 160px;
+  height: 180px;
   max-width: 100%;
   border-radius: 16px;
   overflow: hidden;
@@ -1964,8 +2010,6 @@ main {
   -webkit-user-drag: none;
   max-width: none;
 }
-
-.crop-slider { width: 100%; max-width: 320px; }
 
 /* ---------- 28. Привилегия (зелёная полоска) ---------- */
 .priv-card {
