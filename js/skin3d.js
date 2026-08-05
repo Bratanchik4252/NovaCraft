@@ -2,12 +2,13 @@
    skin3d.js — 3D-превью скина через skinview3d (three.js), как на loliland.net
    Использует те же параметры, что и они: fov 10, zoom 1, WalkAnimation,
    вращение мышью (OrbitControls), поворот модели на -0.5 по Y.
-   skinview3d умеет элитры, уши, плащ и корректно рендерит любые скины 64x64/64x32.
+   skinview3d умеет элитры, уши и корректно рендерит любые скины 64x64/64x32.
    Если skinview3d не загрузился — запасной 2D-рендер (start3DFallback).
 
-   Плащ: юзер кадрирует картинку в ВЕРТИКАЛЬНУЮ рамку формы плаща (наружная
-   грань 10x16), кроп пакуется в наружную грань текстуры плаща + зеркало на
-   внутреннюю. Размер выбирается слайдером «тип плаща» (Классик/HD/UHD).
+   Управление (кнопки в кабинете) — через canvas._skin3d.controls:
+     setAnimation('walk'|'run'|'fly'|'idle') — смена анимации
+     rotateTo(rad)                          — плавный поворот камеры (абсолютный угол)
+     jump()                                 — прыжок (поза + подъём, потом затухает)
    ========================================================================== */
 
 'use strict';
@@ -16,89 +17,11 @@
   // Скин по умолчанию для модели (когда у пользователя нет своего)
   const DEFAULT_SKIN = 'img/skins/steve_original.png?v=2';
 
-  // ---------- Типы плаща ----------
-  // Масштаб текстуры: классик 64x32 (scale 1), HD 128x64 (scale 2), UHD 256x128 (scale 4).
-  // Геометрия плаща в skinview3d — бокс 10x16x1, UV наружной грани читает колонки
-  // 1..10 (x=1*sc..10*sc, y=1*sc..16*sc), внутренняя грань — 12..21 (x=12*sc..21*sc).
-  const CAPE_TYPES = [
-    { label: 'Классик 64×32', scale: 1 },
-    { label: 'HD 128×64', scale: 2 },
-    { label: 'UHD 256×128', scale: 4 },
-  ];
-
-  // Координаты граней в файле размера (64*scale) x (32*scale)
-  function capeOuter(sc) { return { x: 1 * sc, y: 1 * sc, w: 10 * sc, h: 16 * sc }; }
-  function capeInner(sc) { return { x: 12 * sc, y: 1 * sc, w: 10 * sc, h: 16 * sc }; }
-
-  function capeScaleOfWidth(w) {
-    if (w >= 128) return 2;
-    return 1;
-  }
-
-  // ---------- Паковка кропа (вертикальная рамка 10:16) в файл плаща ----------
-  // srcCanvas — канвас с соотношением 10:16 (то, что юзер поместил в рамку).
-  // Рисуем его ровно в наружную грань + зеркалим в внутреннюю, остальное прозрачно.
-  window.packCapeCrop = function (srcCanvas, scale) {
-    const sc = scale || 1;
-    const out = document.createElement('canvas');
-    out.width = 64 * sc;
-    out.height = 32 * sc;
-    const g = out.getContext('2d');
-    g.clearRect(0, 0, out.width, out.height);
-    g.imageSmoothingEnabled = false;
-
-    const outer = capeOuter(sc);
-    // Рисуем кроп (любой размер, пропорция 10:16) без искажений в наружную грань
-    let s = Math.min(outer.w / srcCanvas.width, outer.h / srcCanvas.height);
-    let dw = srcCanvas.width * s;
-    let dh = srcCanvas.height * s;
-    g.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height,
-      outer.x + (outer.w - dw) / 2, outer.y + (outer.h - dh) / 2, dw, dh);
-
-    // Зеркало на внутреннюю грань
-    // После translate(inner.x + inner.w, 0) + scale(-1,1) экран = (inner.x + inner.w) - локальная,
-    // поэтому чтобы попасть в [inner.x, inner.x+inner.w], рисуем с локальной x = (inner.w - dw)/2
-    const inner = capeInner(sc);
-    g.save();
-    g.translate(inner.x + inner.w, 0);
-    g.scale(-1, 1);
-    g.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height,
-      (inner.w - dw) / 2, inner.y + (inner.h - dh) / 2, dw, dh);
-    g.restore();
-
-    return out.toDataURL('image/png');
-  };
-
-  // ---------- Превью наружной грани плаща (вертикальная картинка 10:16) ----------
-  // Достаёт наружную грань из готового файла плаща для плоского превью.
-  window.getCapeFace = function (capeDataUrl, outW, outH) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const sc = capeScaleOfWidth(img.naturalWidth);
-        const outer = capeOuter(sc);
-        const c = document.createElement('canvas');
-        c.width = outW || 100;
-        c.height = outH || Math.round((outW || 100) * 1.6);
-        const g = c.getContext('2d');
-        g.imageSmoothingEnabled = false;
-        g.imageSmoothingQuality = 'high';
-        g.drawImage(img, outer.x, outer.y, outer.w, outer.h, 0, 0, c.width, c.height);
-        resolve(c.toDataURL('image/png'));
-      };
-      img.onerror = () => resolve(null);
-      img.src = capeDataUrl;
-    });
-  };
-
-  // ---------- Кол-во типов плаща для слайдера ----------
-  window.CAPE_TYPES = CAPE_TYPES;
-
   // ---------- Главная функция ----------
-  window.start3D = function (canvas, skinUrl, capeUrl) {
+  window.start3D = function (canvas, skinUrl) {
     if (!canvas) return;
     if (!window.skinview3d) {
-      if (window.start3DFallback) window.start3DFallback(canvas, skinUrl, capeUrl);
+      if (window.start3DFallback) window.start3DFallback(canvas, skinUrl);
       return;
     }
 
@@ -129,22 +52,116 @@
       viewer.playerWrapper.rotation.y = -0.5;
       viewer.animation.speed = 0.6;
     } catch (e) {
-      if (window.start3DFallback) window.start3DFallback(canvas, skinUrl, capeUrl);
+      if (window.start3DFallback) window.start3DFallback(canvas, skinUrl);
       return;
     }
 
-    // Плащ (если передан) — как отдельная текстура на спине.
-    if (capeUrl && viewer.playerObject && viewer.playerObject.cape) {
-      try {
-        viewer.loadCape(capeUrl);
-      } catch (e) {
-        // Плохой плащ не роняет превью скина — просто рисуем без него
-      }
+    // ---------- Анимации ----------
+    const ANIMS = {
+      walk: () => new skinview3d.WalkingAnimation(),
+      run: () => new skinview3d.RunningAnimation(),
+      fly: () => new skinview3d.FlyingAnimation(),
+      idle: () => {
+        // IdleAnimation есть не во всех сборках — если нет, берём ходьбу на малой скорости
+        if (skinview3d.IdleAnimation) return new skinview3d.IdleAnimation();
+        return new skinview3d.WalkingAnimation();
+      },
+    };
+    const ANIM_SPEED = { walk: 0.6, run: 1.1, fly: 1.0, idle: 0.4 };
+
+    // ---------- Свои rAF-циклы (прыжок, поворот камеры) ----------
+    const rafs = new Set();
+    function rLoop(fn) {
+      let raf = 0;
+      const step = t => {
+        if (!rafs.has(raf)) return; // остановлено при dispose
+        if (fn(t) !== false) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+      rafs.add(raf);
+    }
+    function rStop() {
+      rafs.forEach(id => cancelAnimationFrame(id));
+      rafs.clear();
     }
 
-    // ---------- Очистка ----------
+    // ---------- Прыжок ----------
+    // Поза: руки вверх, ноги поджаты; тело приподнимается и опускается.
+    let jumpT = 0; // 1 -> 0
+    function doJump() {
+      if (jumpT > 0 || !viewer.playerObject) return;
+      jumpT = 1;
+      rLoop(() => {
+        jumpT -= 0.016 / 0.55; // прыжок ~0.55 c
+        const p = 1 - jumpT;   // 0..1
+        if (jumpT <= 0) {
+          jumpT = 0;
+          viewer.playerWrapper.position.y = 0;
+          restoreLimbs();
+          return false;
+        }
+        viewer.playerWrapper.position.y = Math.sin(p * Math.PI) * 0.9;
+        setLimbs({
+          leftArm: -2.6, rightArm: -2.6,
+          leftLeg: -1.3, rightLeg: 1.0,
+        });
+      });
+    }
+    let limbCache = null;
+    function setLimbs(poses) {
+      if (!viewer.playerObject) return;
+      if (!limbCache) {
+        limbCache = {};
+        for (const name of Object.keys(poses)) {
+          const part = viewer.playerObject[name];
+          if (part) limbCache[name] = { x: part.rotation.x, y: part.rotation.y, z: part.rotation.z };
+        }
+      }
+      for (const name of Object.keys(poses)) {
+        const part = viewer.playerObject[name];
+        if (part) part.rotation.x = poses[name];
+      }
+    }
+    function restoreLimbs() {
+      if (!limbCache) return;
+      for (const name of Object.keys(limbCache)) {
+        const part = viewer.playerObject[name];
+        if (part) {
+          part.rotation.x = limbCache[name].x;
+          part.rotation.y = limbCache[name].y;
+          part.rotation.z = limbCache[name].z;
+        }
+      }
+      limbCache = null;
+    }
+
+    // ---------- Плавный поворот камеры ----------
+    function rotateTo(rad) {
+      rLoop(() => {
+        const d = rad - viewer.playerWrapper.rotation.y;
+        if (Math.abs(d) < 0.005) {
+          viewer.playerWrapper.rotation.y = rad;
+          return false;
+        }
+        viewer.playerWrapper.rotation.y += d * 0.09;
+      });
+    }
+
+    // ---------- Управление ----------
     canvas._skin3d = {
+      controls: {
+        setAnimation(name) {
+          if (!ANIMS[name]) return;
+          try {
+            viewer.animation = ANIMS[name]();
+            viewer.animation.speed = ANIM_SPEED[name] || 1;
+          } catch (e) {}
+        },
+        rotateTo,
+        jump: doJump,
+      },
       dispose() {
+        rStop();
         try { viewer.dispose(); } catch (e) {}
       },
     };

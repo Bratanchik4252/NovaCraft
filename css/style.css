@@ -1833,13 +1833,13 @@ main {
 
 .skin3d-canvas {
   width: 100%;
-  max-width: 300px;
-  aspect-ratio: 300 / 356;
+  max-width: 400px;
+  aspect-ratio: 400 / 475;
   margin: 0 auto;
   display: block;
   cursor: grab;
   touch-action: none;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--glass-border);
   background:
     radial-gradient(circle at 50% 30%, var(--glass-bg-hover), transparent 60%),
@@ -1849,51 +1849,61 @@ main {
 
 .skin3d-canvas:active { cursor: grabbing; }
 
-/* ---------- Плащ: CSS-наклон (как у loliland.net) ---------- */
-.cape-tilt {
-  width: 100%;
-  max-width: 300px;
-  aspect-ratio: 300 / 356;
-  margin: 0 auto;
+/* ---------- Панель управления 3D-персонажем ---------- */
+.skin-actions {
+  margin-top: 14px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  background:
-    radial-gradient(circle at 50% 30%, var(--glass-bg-hover), transparent 60%),
-    var(--glass-bg);
-  overflow: hidden;
-  perspective: 1000px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.cape-tilt__content {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  transform-style: preserve-3d;
-  transform: rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1, 1, 1);
-  transition: transform 0.25s var(--ease);
-  will-change: transform;
-}
-
-.cape-tilt:active .cape-tilt__content { transition: none; }
-
-.cape-tilt__img {
-  width: 150px;
-  height: 240px;
-  image-rendering: auto;
-  object-fit: fill;
-  transform-origin: top center;
-  transform: translateZ(0);
-}
-
-.cape-tilt__empty {
-  position: absolute;
-  align-self: center;
+.skin-actions-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+
+.skin-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skin-act {
+  flex: 1;
+  min-width: 90px;
+  padding: 9px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text);
   font-size: 14px;
-  opacity: 0.7;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.3s var(--ease);
+}
+
+.skin-act:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.skin-act.active {
+  background: var(--glass-bg-hover);
+  border-color: var(--info, #7aa2ff);
+  color: var(--info, #7aa2ff);
+  text-shadow: 0 0 12px var(--info, #7aa2ff);
+  box-shadow: 0 0 14px rgba(122, 162, 255, 0.25);
+}
+
+.skin-act-jump.active {
+  border-color: var(--success, #4dff88);
+  color: var(--success, #4dff88);
+  text-shadow: 0 0 12px var(--success, #4dff88);
+  box-shadow: 0 0 14px rgba(77, 255, 136, 0.25);
 }
 
 .upload-box {
@@ -1920,74 +1930,7 @@ main {
 
 .crop-wrap { display: flex; flex-direction: column; gap: 14px; align-items: center; }
 
-/* Ряд пилюль-слайдера (как навигация в шапке: пилюли + бегающий индикатор) */
-.crop-pills-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 380px;
-  margin: 0 auto 14px;
-}
-
-.crop-pills-label {
-  color: var(--muted);
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.crop-pills {
-  position: relative;
-  display: flex;
-  gap: 4px;
-  padding: 5px;
-  margin: 0 auto;
-  border-radius: 9999px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-.crop-pill {
-  position: relative;
-  z-index: 2;
-  padding: 8px 18px;
-  border-radius: 9999px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.2s var(--ease);
-}
-
-.crop-pill:hover { color: var(--text); }
-
-.crop-pill.active { color: var(--text); }
-
-.crop-pills-ind {
-  position: absolute;
-  top: 5px;
-  left: 0;
-  height: calc(100% - 10px);
-  width: 0;
-  border-radius: 9999px;
-  background: var(--glass-bg-hover);
-  border: 1px solid var(--glass-border-hover);
-  box-shadow: var(--shadow);
-  z-index: 1;
-  transition: transform 0.35s var(--ease), width 0.35s var(--ease);
-  pointer-events: none;
-}
-
-.crop-pills-ind.no-anim {
-  transition: none;
-}
-
-/* Большой экран кадрирования: фото + затемнение + зона (круг/прямоугольник) */
+/* Большой экран кадрирования: фото + затемнение + круглая зона */
 .crop-modal { max-width: 560px; }
 
 .crop-box {
@@ -2027,7 +1970,7 @@ main {
   pointer-events: none;
 }
 
-/* Зона кадрирования: круг (аватарка) или прямоугольник (плащ) */
+/* Зона кадрирования: круг (аватарка) */
 .crop-zone {
   position: absolute;
   top: 50%;
@@ -2038,11 +1981,6 @@ main {
   border: 3px solid var(--text);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 18px rgba(0, 0, 0, 0.55);
   box-sizing: border-box;
-}
-
-/* Прямоугольник плаща затемняет всё ВНЕ себя через box-shadow (внутри прозрачно) */
-.crop-box.crop-cape .crop-zone {
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
 }
 
 .crop-hint {

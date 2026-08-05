@@ -573,10 +573,19 @@
       return error ? { ok: false, error: error.message } : { ok: true };
     },
 
-    // Общий CRUD для админских таблиц
+    // Общий CRUD для админских таблиц.
+    // Важно: id во всех таблицах — bigint generated ALWAYS as identity,
+    // поэтому upsert с явным id падает («cannot insert a non-DEFAULT value»).
+    // Для существующих записей делаем update по id, для новых — insert без id.
     async adminUpsert(table, row) {
       if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
-      const { error } = await client.from(table).upsert(row);
+      if (row && row.id != null) {
+        const clean = Object.assign({}, row);
+        delete clean.id;
+        const { error } = await client.from(table).update(clean).eq('id', row.id);
+        return error ? { ok: false, error: error.message } : { ok: true };
+      }
+      const { error } = await client.from(table).insert(row);
       return error ? { ok: false, error: error.message } : { ok: true };
     },
     async adminDelete(table, id) {

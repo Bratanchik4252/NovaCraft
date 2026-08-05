@@ -1,6 +1,6 @@
 /* ==========================================================================
    profile.js — личный кабинет
-   Вкладки: внешний вид (скин/плащ/аватарка), бонус, рефералы, настройки,
+   Вкладки: внешний вид (скин/аватарка), бонус, рефералы, настройки,
    2FA, способы авторизации, история транзакций.
    TODO: заменить заглушки на данные с бэкенда (физический сервер, 2026)
    ========================================================================== */
@@ -59,7 +59,7 @@
   }
 
   // ======================================================================
-  //  ВНЕШНИЙ ВИД: скин + плащ (3D-превью) + аватарка (кадрирование)
+  //  ВНЕШНИЙ ВИД: скин (3D-превью) + аватарка (кадрирование)
   //  Все загрузки файлов — через drag-and-drop зоны (клик открывает выбор).
   // ======================================================================
 
@@ -174,20 +174,22 @@
   // Персонаж собран из кубиков, текстуры — скин 64x64. Персонаж «шагает»
   // на месте, крутится перетаскиванием мыши и медленно вращается сам.
   // Основной рендер — three.js (js/skin3d.js); этот вариант — запасной.
-  function start3DFallback(canvas, skinUrl, capeUrl) {
+  function start3DFallback(canvas, skinUrl) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
 
     const skinImg = new Image();
-    let capeImg = capeUrl ? new Image() : null;
     let raf = 0;
     let ready = false;
     let modelRot = 0.55;
+    let rotTarget = null;
     let lastDrag = -1e9;
+    let anim = 'walk';
+    let jump = 0;
 
     function checkReady() {
-      if (skinImg.complete && (!capeUrl || !capeImg || capeImg.complete)) {
+      if (skinImg.complete) {
         if (raf) cancelAnimationFrame(raf);
         ready = true;
         loop(performance.now());
@@ -201,11 +203,6 @@
       skinImg.onerror = checkReady;
     };
     skinImg.src = skinUrl || DEFAULT_SKIN;
-    if (capeImg) {
-      capeImg.onload = checkReady;
-      capeImg.onerror = () => { capeImg = null; checkReady(); };
-      capeImg.src = capeUrl;
-    }
 
     // UV-карта стандартного скина 64x64
     const uv = (x, y, w, h) => ({ x, y, w, h });
@@ -244,17 +241,21 @@
     const S = 6.5;
     const CX = W / 2, GROUND = H - 16;
 
-    function transformFace(face, off, pivot, ang) {
+    function transformFace(face, off, pivot, ang, angZ) {
       const c = Math.cos(ang), s = Math.sin(ang);
+      const cz = Math.cos(angZ || 0), sz = Math.sin(angZ || 0);
       const mc = Math.cos(modelRot), ms = Math.sin(modelRot);
       const out = [];
       for (const [vx, vy, vz] of face) {
         let x = off.x + vx - pivot.x;
         let y = off.y + vy - pivot.y;
         let z = off.z + vz - pivot.z;
-        const ny = y * c - z * s;
+        const nx = x * cz - y * sz;
+        const ny = x * sz + y * cz;
+        x = nx; y = ny;
+        const ny2 = y * c - z * s;
         const nz = y * s + z * c;
-        y = ny; z = nz;
+        y = ny2; z = nz;
         x += pivot.x; y += pivot.y; z += pivot.z;
         const rx = x * mc + z * ms;
         const rz = -x * ms + z * mc;
@@ -263,48 +264,81 @@
       return out;
     }
 
+    // Параметры анимаций: [скорость фазы, размах рук/ног, размах поворота в полёте, боб, наклон рук в стороны]
+    const ANIMS = {
+      walk: { speed: 1.0, swing: 0.55, flyArms: 0, bob: 1.0 },
+      run:  { speed: 2.3, swing: 0.95, flyArms: 0, bob: 1.7 },
+      fly:  { speed: 1.5, swing: 0.5, flyArms: 1, bob: 0.5 },
+      idle: { speed: 0.45, swing: 0.1, flyArms: 0, bob: 0.4 },
+    };
+    const JUMP_TUCK = 1.15;
+
     function loop(t) {
       if (!ready) return;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, W, H);
 
-      // тень под персонажем
+      // плавный поворот камеры к цели
+      if (rotTarget !== null) {
+        modelRot += (rotTarget - modelRot) * 0.08;
+        if (Math.abs(rotTarget - modelRot) < 0.01) modelRot = rotTarget;
+        lastDrag = Date.now();
+      }
+
+      // тень под персонажем (сжимается во время прыжка)
+      const a = ANIMS[anim] || ANIMS.walk;
+      const jumpH = jump * 14;
+      const shadowScale = 1 - jump * 0.35;
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.beginPath();
-      ctx.ellipse(CX, GROUND, 46, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(CX, GROUND, 46 * shadowScale, 9 * shadowScale, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const phase = t / 1000 * 2.6;
-      const swing = 0.55;
-      const bob = Math.abs(Math.sin(phase)) * 1.4;
+      const phase = t / 1000 * 2.6 * a.speed;
+      const swing = a.swing;
+      const bob = Math.abs(Math.sin(phase)) * 1.4 * a.bob;
+      // в полёте руки вытянуты в стороны (поворот вокруг z)
+      const flyArm = a.flyArms ? 1.35 : 0;
 
       const parts = [];
-      const addBox = (w, h, d, off, pivot, ang, uvs, tex, facesOnly) => {
+      const addBox = (w, h, d, off, pivot, ang, uvs, tex, facesOnly, angZ) => {
         const faces = boxFaces(w, h, d);
         const keys = facesOnly || ['top', 'bottom', 'right', 'left', 'front', 'back'];
         for (const key of keys) {
           const u = uvs[key];
           if (!u) continue;
-          const pts = transformFace(faces[key], off, pivot, ang);
+          const pts = transformFace(faces[key], off, pivot, ang, angZ);
           parts.push({ A: pts[0], B: pts[1], C: pts[2], u, tex });
         }
       };
 
-      // определение левых конечности (по прозрачности региона)
+      // определение левых конечностей (по прозрачности региона)
       let armL = ARM_L, legL = LEG_L;
       if (rectEmpty(skinImg, ARM_L.front)) armL = ARM_R;
       if (rectEmpty(skinImg, LEG_L.front)) legL = LEG_R;
 
-      addBox(4, 12, 4, { x: -2, y: 6, z: 0 }, { x: -2, y: 12, z: 0 }, Math.sin(phase) * swing, legL, skinImg);
-      addBox(4, 12, 4, { x: 2, y: 6, z: 0 }, { x: 2, y: 12, z: 0 }, Math.sin(phase + Math.PI) * swing, LEG_R, skinImg);
-      addBox(8, 12, 4, { x: 0, y: 18 + bob, z: 0 }, { x: 0, y: 24, z: 0 }, 0, BODY, skinImg);
-      addBox(4, 12, 4, { x: -6, y: 18 + bob, z: 0 }, { x: -6, y: 24, z: 0 }, Math.sin(phase + Math.PI) * 0.45, armL, skinImg);
-      addBox(4, 12, 4, { x: 6, y: 18 + bob, z: 0 }, { x: 6, y: 24, z: 0 }, Math.sin(phase) * 0.45, ARM_R, skinImg);
-      addBox(8, 8, 8, { x: 0, y: 30 + bob, z: 0 }, { x: 0, y: 24, z: 0 }, Math.sin(phase * 0.5) * 0.05, HEAD, skinImg);
-      if (capeImg) {
-        const capUv = { x: 0, y: 0, w: capeImg.width, h: capeImg.height };
-        addBox(8, 12, 0.6, { x: 0, y: 18, z: -2.4 }, { x: 0, y: 24, z: -2.4 }, 0.12 * Math.sin(phase * 0.5), { back: capUv, front: capUv }, capeImg, ['back', 'front']);
-      }
+      const lift = jumpH;
+
+      // ноги: в прыжке — поджаты; в полёте — прямые с лёгким махом
+      let legSwing, legSwing2;
+      if (jump > 0.05) { legSwing = -JUMP_TUCK; legSwing2 = JUMP_TUCK * 0.6; }
+      else if (a.flyArms) { legSwing = Math.sin(phase) * swing * 0.6; legSwing2 = -legSwing; }
+      else { legSwing = Math.sin(phase) * swing; legSwing2 = Math.sin(phase + Math.PI) * swing; }
+      addBox(4, 12, 4, { x: -2, y: 6, z: 0 }, { x: -2, y: 12, z: 0 }, legSwing, legL, skinImg);
+      addBox(4, 12, 4, { x: 2, y: 6, z: 0 }, { x: 2, y: 12, z: 0 }, legSwing2, LEG_R, skinImg);
+
+      // тело
+      addBox(8, 12, 4, { x: 0, y: 18 + bob + lift, z: 0 }, { x: 0, y: 24, z: 0 }, 0, BODY, skinImg);
+
+      // руки: в прыжке подняты вверх, в полёте вытянуты в стороны
+      let armSwing, armSwing2;
+      if (jump > 0.05) { armSwing = -1.6; armSwing2 = -1.6; }
+      else { armSwing = Math.sin(phase + Math.PI) * swing * 0.8; armSwing2 = Math.sin(phase) * swing * 0.8; }
+      addBox(4, 12, 4, { x: -6, y: 18 + bob + lift, z: 0 }, { x: -6, y: 24, z: 0 }, armSwing, armL, skinImg, null, flyArm);
+      addBox(4, 12, 4, { x: 6, y: 18 + bob + lift, z: 0 }, { x: 6, y: 24, z: 0 }, armSwing2, ARM_R, skinImg, null, -flyArm);
+
+      // голова
+      addBox(8, 8, 8, { x: 0, y: 30 + bob + lift, z: 0 }, { x: 0, y: 24, z: 0 }, Math.sin(phase * 0.5) * 0.05, HEAD, skinImg);
 
       parts.sort((a, b) => (b.A.z + b.B.z + b.C.z) - (a.A.z + a.B.z + a.C.z));
       for (const f of parts) {
@@ -315,8 +349,14 @@
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
 
+      // прыжок затухает
+      if (jump > 0) {
+        jump = Math.max(0, jump - 0.035);
+        if (jump <= 0) jump = 0;
+      }
+
       // самовращение, когда персонажа не крутят
-      if (Date.now() - lastDrag > 2500) modelRot += 0.004;
+      if (rotTarget === null && Date.now() - lastDrag > 2500) modelRot += 0.004;
 
       raf = requestAnimationFrame(loop);
     }
@@ -338,58 +378,57 @@
     const endDrag = () => { dragging = false; lastDrag = Date.now(); };
     canvas.addEventListener('pointerup', endDrag);
     canvas.addEventListener('pointercancel', endDrag);
+
+    // ---------- Управление (общий API с three.js-версией) ----------
+    canvas._skin3d = {
+      controls: {
+        setAnimation: name => { if (ANIMS[name]) anim = name; },
+        rotateTo: rad => { rotTarget = rad; lastDrag = Date.now(); },
+        jump: () => { jump = Math.min(1, jump + 0.6); },
+      },
+    };
   }
 
   function initAppearance(user) {
     const skinCanvas = $('#skin3d');
-    const capeImg = $('#cape-img');
-    const capeEmpty = $('#cape-empty');
     const skinStatus = $('#skin-status');
-    const capeStatus = $('#cape-status');
 
     window.start3D(skinCanvas, user.skin);
 
-    // Плащ: показываем как наклонённую картинку (CSS-наклон на .cape-tilt).
-    // Превью = наружная грань плаща (вертикальная 10:16), а не весь файл 2:1.
-    function renderCapePreview(src) {
-      if (!capeImg) return;
-      if (src && window.getCapeFace) {
-        window.getCapeFace(src, 150, 240).then(faceUrl => {
-          if (!faceUrl) { showEmptyCape(); return; }
-          capeImg.style.display = 'block';
-          if (capeEmpty) capeEmpty.style.display = 'none';
-          capeImg.src = faceUrl;
-        });
-      } else {
-        showEmptyCape();
-      }
+    // ---------- Управление 3D-персонажем ----------
+    // Анимации: ходьба / бег / полёт / покой + прыжок (действие) + повороты камеры.
+    const animBtns = $$('#skin-actions [data-anim]');
+    const viewBtns = $$('#skin-actions [data-view]');
+    const jumpBtn = $('#skin-jump');
+    const ctrl = () => skinCanvas._skin3d && skinCanvas._skin3d.controls;
+
+    function setActive(group, el) {
+      group.forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
     }
-
-    function showEmptyCape() {
-      if (!capeImg) return;
-      capeImg.removeAttribute('src');
-      capeImg.style.display = 'none';
-      if (capeEmpty) capeEmpty.style.display = '';
-    }
-
-    renderCapePreview(user.cape);
-
-    // ---------- Плащ: интерактивный наклон за мышью (как у loliland.net) ----------
-    const capeTilt = $('#cape-tilt');
-    const capeTiltContent = $('#cape-tilt-content');
-    if (capeTilt && capeTiltContent) {
-      const applyTilt = (clientX, clientY) => {
-        const r = capeTiltContent.getBoundingClientRect();
-        const rx = (clientY - (r.top + r.height / 2)) / 5;
-        const ry = (clientX - (r.left + r.width / 2)) / 5;
-        capeTiltContent.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1, 1, 1)`;
-      };
-      capeTilt.addEventListener('mousemove', e => applyTilt(e.clientX, e.clientY));
-      capeTilt.addEventListener('mouseout', () => {
-        capeTiltContent.style.transform = 'rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1,1,1)';
+    animBtns.forEach(b => {
+      b.addEventListener('click', () => {
+        const c = ctrl();
+        if (!c) return;
+        setActive(animBtns, b);
+        c.setAnimation(b.dataset.anim);
       });
-      capeTilt.addEventListener('focusout', () => {
-        capeTiltContent.style.transform = 'rotateX(0deg) rotateY(0deg) perspective(1000px) scale3d(1,1,1)';
+    });
+    viewBtns.forEach(b => {
+      b.addEventListener('click', () => {
+        const c = ctrl();
+        if (!c) return;
+        setActive(viewBtns, b);
+        c.rotateTo(Number(b.dataset.view) * Math.PI / 180);
+      });
+    });
+    if (jumpBtn) {
+      jumpBtn.addEventListener('click', () => {
+        const c = ctrl();
+        if (!c) return;
+        jumpBtn.classList.add('active');
+        setTimeout(() => jumpBtn.classList.remove('active'), 350);
+        c.jump();
       });
     }
 
@@ -422,82 +461,15 @@
       });
     }
 
-    // Кнопки сброса видны только когда скин/плащ/аватарка загружены
-    const capeReset = $('#cape-reset');
+    // Кнопки сброса видны только когда скин/аватарка загружены
     const avatarReset = $('#avatar-reset');
     const preview = $('#avatar-preview');
     function refreshSkinButtons() {
       const fresh = getCurrentUser() || user;
       if (skinReset) skinReset.style.display = fresh.skin ? '' : 'none';
-      if (capeReset) capeReset.style.display = fresh.cape ? '' : 'none';
       if (avatarReset) avatarReset.style.display = fresh.avatar ? '' : 'none';
     }
     refreshSkinButtons();
-
-    // ---------- Загрузка плаща (drag-drop): рамка формы плаща + слайдер типа ----------
-    // Юзер сам умещает картинку в вертикальную рамку (10:16) — то, что в рамке,
-    // и есть плащ. Слайдер выбирает тип плаща, и рамка расширяется под него.
-    const CAPE_CROP_TYPES = [
-      { label: 'Классик 64×32', outW: 100, outH: 160, pack: 1 },
-      { label: 'HD 128×64', outW: 150, outH: 240, pack: 2 },
-      { label: 'UHD 256×128', outW: 200, outH: 320, pack: 4 },
-    ];
-    makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
-      if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
-        if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG, JPG, WEBP или GIF';
-        return;
-      }
-      if (file.size > MAX_MEDIA) {
-        if (capeStatus) capeStatus.textContent = 'Файл больше 5 МБ';
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = ev => {
-        if (file.type === 'image/gif') {
-          // GIF сохраняем как есть (кадрировать гифки не умеем)
-          Auth.updateCurrentUser(u => { u.cape = ev.target.result; });
-          const fresh = getCurrentUser() || user;
-          renderCapePreview(fresh.cape);
-          if (capeStatus) capeStatus.textContent = 'Плащ (GIF) сохранён';
-          refreshSkinButtons();
-          return;
-        }
-        // ==== ВРЕМЕННЫЙ ТЕСТ: без кадрирования ====
-        // Просто берём из фотки прямоугольник (0,0)..(11,16) и кладём его
-        // в плащ на те же координаты. Больше ничего не делаем.
-        const img = new Image();
-        img.onload = () => {
-          const out = document.createElement('canvas');
-          out.width = 64;
-          out.height = 32;
-          const g = out.getContext('2d');
-          g.clearRect(0, 0, out.width, out.height);
-          g.imageSmoothingEnabled = false;
-          g.drawImage(img, 0, 0, 12, 17, 0, 0, 12, 17);
-          const packed = out.toDataURL('image/png');
-          Auth.updateCurrentUser(u => { u.cape = packed; });
-          const fresh = getCurrentUser() || user;
-          renderCapePreview(fresh.cape);
-          window.start3D(skinCanvas, fresh.skin, fresh.cape);
-          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (тест: кусок (0,0)-(11,16) из фотки)';
-          refreshSkinButtons();
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // ---------- Сброс плаща ----------
-    if (capeReset) {
-      capeReset.addEventListener('click', () => {
-        Auth.updateCurrentUser(u => { u.cape = null; });
-        renderCapePreview(null);
-        const fresh = getCurrentUser() || user;
-        window.start3D(skinCanvas, fresh.skin, null);
-        if (capeStatus) capeStatus.textContent = 'Плащ сброшен';
-        refreshSkinButtons();
-      });
-    }
 
     // ---------- Аватарка (drag-drop, с кадрированием в рамке квадрата) ----------
     const avatarStatus = $('#avatar-status');
@@ -537,8 +509,6 @@
             refreshSkinButtons();
           }, {
             title: 'Настрой аватарку — круг в центре это она, двигай фото и зуми колесом',
-            isCape: false,
-            types: [{ label: '256×256', outW: 256, outH: 256, pack: 1 }],
           });
         }
       };
@@ -548,99 +518,49 @@
 
   // ---------- Кадрирование ----------
   // Аватарка: фиксированный КРУГ (менять размер нельзя), фото затемнено вне круга.
-  // Плащ: прямоугольник 10:16, размер переключается пилюлями (Классик/HD/UHD).
   // Зум — колесо мыши, движение — перетаскивание. Слайдеров нет.
-  // cfg: { title, isCape, types:[{label,outW,outH,pack}], frame:[ширины рамки в модалке] }
-  // onSave(canvas, type) — type у аватарки всегда types[0].
+  // cfg: { title }
+  // onSave(canvas) — готовый круглый аватар.
   function openCrop(dataUrl, onSave, cfg) {
     const overlay = $('#crop-overlay');
     const box = $('#crop-box');
     const img = $('#crop-img');
     const dark = $('#crop-dark');
     const zone = $('#crop-zone');
-    const typeRow = $('#crop-type-row');
-    const typePills = $('#crop-type-pills');
-    const typeLabel = $('#crop-type-label');
     const titleEl = $('#crop-title');
     const hint = $('#crop-hint');
     if (!overlay || !box || !img) return;
 
     cfg = cfg || {};
-    const isCape = !!cfg.isCape;
-    const types = cfg.types || [{ label: '256×256', outW: 256, outH: 256, pack: 1 }];
-    const frameSizes = cfg.frame || types.map(t => Math.round(t.outW * 2.5));
     if (titleEl) titleEl.textContent = cfg.title || 'Кадрирование';
     if (hint) hint.textContent = 'Колесо мыши — зум · тащи мышкой — двигай зону';
 
     // ---------- сброс от прошлого открытия ----------
     img.onload = null;
     img.onerror = null;
-    box.classList.remove('crop-avatar', 'crop-cape');
+    box.classList.remove('crop-avatar');
     if (dark) dark.className = 'crop-dark';
     if (zone) zone.className = 'crop-zone';
-    if (typeRow) typeRow.style.display = isCape ? '' : 'none';
-    if (typeLabel) typeLabel.textContent = isCape ? 'Размер плаща' : 'Размер аватарки';
-    box.classList.add(isCape ? 'crop-cape' : 'crop-avatar');
+    box.classList.add('crop-avatar');
 
     // ---------- размер зоны ----------
     // у аватарки зона — круг фиксированного диаметра (не меняется!)
-    // у плаща — прямоугольник 10:16 (вертикальный), размер по выбранному типу
     const AVATAR_ZONE = 240; // px диаметр круга в модалке
-    let zoneW = isCape ? (frameSizes[types.length - 1] || 200) : AVATAR_ZONE;
-    let zoneH = isCape ? Math.round(zoneW * 1.6) : AVATAR_ZONE;
-    let currentTypeIndex = types.length - 1;
+    let zoneW = AVATAR_ZONE;
+    let zoneH = AVATAR_ZONE;
 
     function paintZone() {
       if (!dark || !zone) return;
       const r = zoneW / 2;
       // круг: затемнение через radial-gradient (внутри круга фото светлое)
-      // прямоугольник: затемнение через box-shadow зоны (см. CSS), .crop-dark не нужен
-      dark.style.background = isCape
-        ? 'transparent'
-        : 'radial-gradient(circle ' + r + 'px at center, transparent 0%, transparent ' + (r - 1) + 'px, rgba(0,0,0,0.55) ' + r + 'px, rgba(0,0,0,0.55) 100%)';
+      dark.style.background =
+        'radial-gradient(circle ' + r + 'px at center, transparent 0%, transparent ' + (r - 1) + 'px, rgba(0,0,0,0.55) ' + r + 'px, rgba(0,0,0,0.55) 100%)';
       zone.style.width = zoneW + 'px';
       zone.style.height = zoneH + 'px';
-      zone.style.borderRadius = isCape ? '14px' : '50%';
+      zone.style.borderRadius = '50%';
       zone.style.borderColor = 'var(--text)';
-      if (isCape) {
-        zone.classList.add('crop-rect');
-        zone.classList.remove('crop-circle');
-      } else {
-        zone.classList.add('crop-circle');
-        zone.classList.remove('crop-rect');
-      }
-    }
-
-    // ---------- пилюли выбора размера (только для плаща) ----------
-    if (typePills) {
-      typePills.innerHTML = types.map((t, i) =>
-        '<button type="button" class="crop-pill' + (i === types.length - 1 ? ' active' : '') + '" data-i="' + i + '">' + MC.esc(t.label) + '</button>'
-      ).join('');
-      typePills.querySelectorAll('.crop-pill').forEach(btn => {
-        btn.addEventListener('click', () => {
-          typePills.querySelectorAll('.crop-pill').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentTypeIndex = Number(btn.dataset.i);
-          // меняем размер зоны, сохраняя центр видимой области в исходнике
-          const v = natural.w ? visibleSrc() : null;
-          zoneW = frameSizes[currentTypeIndex] || zoneW;
-          zoneH = Math.round(zoneW * 1.6);
-          paintZone();
-          if (v && natural.w) {
-            // новая зона — та же видимая зона исходника, центр сохраняем
-            const cx = v.srcX + v.srcW / 2;
-            const cy = v.srcY + v.srcH / 2;
-            const scale = Math.max(zoneW / natural.w, zoneH / natural.h);
-            const dispW2 = natural.w * scale * zoom;
-            const dispH2 = natural.h * scale * zoom;
-            dx = dispW2 / 2 - cx * scale * zoom;
-            dy = dispH2 / 2 - cy * scale * zoom;
-            applyTransform(scale);
-          } else {
-            applyTransform();
-          }
-        });
-      });
+      zone.classList.add('crop-circle');
+      zone.classList.remove('crop-rect');
     }
 
     // ---------- состояние ----------
@@ -654,7 +574,7 @@
     img.onload = () => {
       natural.w = img.naturalWidth;
       natural.h = img.naturalHeight;
-      if (!natural.w || !natural.h) { close(); if (onSave) onSave(null, types[0]); return; }
+      if (!natural.w || !natural.h) { close(); if (onSave) onSave(null); return; }
       // масштаб = фото полностью покрывает зону
       baseScale = Math.max(zoneW / natural.w, zoneH / natural.h);
       zoom = 1; dx = 0; dy = 0;
@@ -761,23 +681,18 @@
     $('#crop-cancel').onclick = close;
 
     $('#crop-save').onclick = () => {
-      const type = types[currentTypeIndex] || types[types.length - 1];
       const v = visibleSrc();
       const canvas = document.createElement('canvas');
-      canvas.width = type.outW; canvas.height = type.outH;
+      canvas.width = 256; canvas.height = 256;
       const ctx = canvas.getContext('2d');
-      if (isCape) {
-        ctx.imageSmoothingEnabled = false;
-      } else {
-        // аватарка: вырезаем КРУГ (прозрачные углы)
-        ctx.imageSmoothingEnabled = true;
-        ctx.beginPath();
-        ctx.arc(type.outW / 2, type.outH / 2, Math.min(type.outW, type.outH) / 2, 0, Math.PI * 2);
-        ctx.clip();
-      }
+      // аватарка: вырезаем КРУГ (прозрачные углы)
+      ctx.imageSmoothingEnabled = true;
+      ctx.beginPath();
+      ctx.arc(128, 128, 128, 0, Math.PI * 2);
+      ctx.clip();
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, v.srcX, v.srcY, v.srcW, v.srcH, 0, 0, canvas.width, canvas.height);
-      if (onSave) onSave(canvas, type);
+      ctx.drawImage(img, v.srcX, v.srcY, v.srcW, v.srcH, 0, 0, 256, 256);
+      if (onSave) onSave(canvas);
       close();
     };
 
