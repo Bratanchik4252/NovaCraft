@@ -591,12 +591,86 @@ function initReveal() {
   $$('.reveal').forEach(el => io.observe(el));
 }
 
+// ---------- Кастомный селект (современный дропдаун) ----------
+// Прячет нативный <select>, рисует свой список и синхронизирует value/change.
+function enhanceSelect(select) {
+  if (!select || select.dataset.csel) return;
+  select.dataset.csel = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'csel';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'csel-btn';
+  btn.innerHTML = '<span class="csel-label"></span>' +
+    '<svg class="csel-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>';
+
+  const menu = document.createElement('div');
+  menu.className = 'csel-menu';
+
+  const label = () => select.options[select.selectedIndex]
+    ? select.options[select.selectedIndex].textContent : '';
+
+  function renderOpts() {
+    menu.innerHTML = '';
+    [...select.options].forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'csel-opt' + (opt.selected ? ' active' : '');
+      b.textContent = opt.textContent;
+      b.addEventListener('click', () => {
+        select.selectedIndex = i;
+        sync();
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        close();
+      });
+      menu.appendChild(b);
+    });
+  }
+
+  function sync() {
+    btn.querySelector('.csel-label').textContent = label();
+    [...menu.children].forEach((b, i) => b.classList.toggle('active', i === select.selectedIndex));
+  }
+
+  function open() { renderOpts(); sync(); wrap.classList.add('open'); }
+  function close() { wrap.classList.remove('open'); }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    wrap.classList.contains('open') ? close() : open();
+  });
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'Escape') close();
+  });
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && wrap.classList.contains('open')) close();
+  });
+
+  // Синхронизация при программном изменении значения (например page.select)
+  select.addEventListener('change', () => { renderOpts(); sync(); });
+
+  select.style.display = 'none';
+  wrap.appendChild(btn);
+  wrap.appendChild(menu);
+  select.parentNode.insertBefore(wrap, select.nextSibling);
+  renderOpts();
+  sync();
+}
+
 // ---------- Инициализация ----------
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   buildHeader();
   buildFooter();
   initReveal();
+
+  // Все статичные селекты на странице становятся кастомными
+  document.querySelectorAll('select:not([data-csel])').forEach(enhanceSelect);
 
   // Если Supabase подключён — восстанавливаем сессию из облака и
   // перерисовываем шапку с авторизованным пользователем.
@@ -634,6 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleTheme,
     getCurrentUser,
     logoutCurrentUser,
+    enhanceSelect,
   };
 
   // ---------- Публичное API уведомлений ----------

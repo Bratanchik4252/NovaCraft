@@ -389,6 +389,11 @@
       // Рендер таблиц + модалка формы
       // ============================================================
       function fieldHtml(f) {
+        if (f.type === 'tags') {
+          return `<div class="field"><label>${MC.esc(f.label)}</label>
+            <div class="taglist" data-taglist="f-${f.key}"></div>
+            <button type="button" class="taglist-add" data-add="f-${f.key}"><span class="plus">+</span> Добавить</button></div>`;
+        }
         if (f.type === 'textarea') {
           return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
             <textarea id="f-${f.key}" rows="3" placeholder="${MC.esc(f.placeholder || '')}"></textarea></div>`;
@@ -412,6 +417,12 @@
 
       let modalTable = null, modalRow = null;
 
+      function taglistRowHtml(value) {
+        return `<div class="taglist-row">
+          <button type="button" class="taglist-minus" title="Удалить">−</button>
+          <input type="text" value="${MC.esc(value || '')}"></div>`;
+      }
+
       function openForm(table, row) {
         const cfg = TABLES[table];
         modalTable = table;
@@ -422,11 +433,16 @@
         document.getElementById('crud-error').textContent = '';
 
         cfg.fields.forEach(f => {
+          if (f.type === 'tags') {
+            const host = document.querySelector('[data-taglist="f-' + f.key + '"]');
+            const arr = Array.isArray(row ? row[f.key] : '') ? row[f.key] : (row && row[f.key] ? [row[f.key]] : ['']);
+            if (host) host.innerHTML = arr.map(taglistRowHtml).join('');
+            return;
+          }
           const el = document.getElementById('f-' + f.key);
           if (!el) return;
           let v = row ? row[f.key] : (f.type === 'checkbox' ? false : '');
-          if (f.type === 'tags' && Array.isArray(v)) v = v.join('\n');
-          if (f.type === 'select' && !f.options.some(o => o[0] === String(v)) && v == null) v = f.options[0][0];
+          if (f.type === 'select' && !f.options.some(o => o[0] === String(v))) v = f.options[0][0];
           if (f.type === 'checkbox') {
             el.checked = !!v;
           } else {
@@ -434,10 +450,30 @@
           }
         });
 
+        // Кастомные селекты для полей формы
+        if (window.MC && MC.enhanceSelect) {
+          document.querySelectorAll('#crud-form select').forEach(MC.enhanceSelect);
+        }
+
         document.getElementById('crud-modal').classList.add('open');
         const first = cfg.fields.find(f => f.type !== 'checkbox');
         if (first) setTimeout(() => { const el = document.getElementById('f-' + first.key); if (el) el.focus(); }, 50);
       }
+
+      // Плюс/минус в списковых полях (делегирование на форму)
+      document.getElementById('crud-form').addEventListener('click', e => {
+        const addBtn = e.target.closest('[data-add]');
+        if (addBtn) {
+          const host = document.querySelector('[data-taglist="' + addBtn.dataset.add + '"]');
+          if (host) host.insertAdjacentHTML('beforeend', taglistRowHtml(''));
+          return;
+        }
+        const minus = e.target.closest('.taglist-minus');
+        if (minus) {
+          const row = minus.closest('.taglist-row');
+          row.parentNode.removeChild(row);
+        }
+      });
 
       document.getElementById('crud-save').addEventListener('click', async () => {
         const cfg = TABLES[modalTable];
@@ -446,13 +482,18 @@
         const row = Object.assign({}, modalRow || {});
         let bad = null;
         cfg.fields.forEach(f => {
+          if (f.type === 'tags') {
+            const v = [...document.querySelectorAll(`[data-taglist="f-${f.key}"] input`)]
+              .map(i => i.value.trim()).filter(Boolean);
+            if (f.required && !v.length) bad = 'Заполни поле «' + f.label + '»';
+            row[f.key] = v;
+            return;
+          }
           const el = document.getElementById('f-' + f.key);
           if (!el) return;
           let v;
           if (f.type === 'checkbox') v = el.checked;
-          else if (f.type === 'tags') {
-            v = el.value.split('\n').map(s => s.trim()).filter(Boolean);
-          } else v = el.value.trim();
+          else v = el.value.trim();
           if (f.type === 'number') v = v === '' ? 0 : Number(v);
           if (f.required && !v) bad = 'Заполни поле «' + f.label + '»';
           row[f.key] = v;

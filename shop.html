@@ -213,6 +213,7 @@
         }
 
         rerender();
+        if (window.MC && MC.enhanceSelect) MC.enhanceSelect(document.getElementById('buy-server'));
         modal.classList.add('open');
       }
 
@@ -276,6 +277,7 @@
         }
 
         rerender();
+        if (window.MC && MC.enhanceSelect) MC.enhanceSelect(document.getElementById('buy-server'));
         modal.classList.add('open');
       }
 
