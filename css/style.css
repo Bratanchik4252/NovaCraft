@@ -1986,16 +1986,22 @@ main {
   transition: none;
 }
 
+/* Большой экран кадрирования: фото + затемнение + зона (круг/прямоугольник) */
+.crop-modal { max-width: 560px; }
+
 .crop-box {
-  width: 280px;
-  height: 180px;
+  width: 480px;
   max-width: 100%;
+  height: 480px;
+  max-height: 62vh;
   border-radius: 16px;
   overflow: hidden;
   position: relative;
   background: #000;
   touch-action: none;
   cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .crop-box.dragging { cursor: grabbing; }
@@ -2009,6 +2015,44 @@ main {
   user-select: none;
   -webkit-user-drag: none;
   max-width: none;
+  z-index: 1;
+}
+
+/* Затемнение фото вне зоны кадрирования */
+.crop-dark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Зона кадрирования: круг (аватарка) или прямоугольник (плащ) */
+.crop-zone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  border: 3px solid var(--text);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 18px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+}
+
+/* Прямоугольник плаща затемняет всё ВНЕ себя через box-shadow (внутри прозрачно) */
+.crop-box.crop-cape .crop-zone {
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+}
+
+.crop-hint {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  margin-top: -4px;
+}
+
+@media (max-width: 600px) {
+  .crop-box { height: 320px; }
 }
 
 /* ---------- 28. Привилегия (зелёная полоска) ---------- */

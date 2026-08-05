@@ -241,20 +241,23 @@
 
   <!-- Модалка кадрирования аватарки / плаща -->
   <div class="modal-overlay" id="crop-overlay">
-    <div class="modal" style="position:relative;max-width:480px">
-      <h3 id="crop-title" style="margin-bottom:14px">Кадрирование</h3>
+    <div class="modal crop-modal" id="crop-modal">
+      <h3 id="crop-title" style="margin-bottom:12px">Кадрирование</h3>
 
-      <div class="crop-pills-row">
-        <span class="crop-pills-label" id="crop-type-label">Тип</span>
+      <!-- для плаща: выбор размера прямоугольника (3 разрешённых), для аватарки скрыт -->
+      <div class="crop-pills-row" id="crop-type-row" style="display:none">
+        <span class="crop-pills-label" id="crop-type-label">Размер</span>
         <div class="crop-pills" id="crop-type-pills" role="radiogroup"></div>
-      </div>
-      <div class="crop-pills-row">
-        <span class="crop-pills-label">Масштаб</span>
-        <div class="crop-pills" id="crop-zoom-pills" role="radiogroup"></div>
       </div>
 
       <div class="crop-wrap">
-        <div class="crop-box" id="crop-box"><img id="crop-img" alt=""></div>
+        <div class="crop-box" id="crop-box">
+          <img id="crop-img" alt="">
+          <!-- затемнение всего фото, кроме зоны кадрирования -->
+          <div class="crop-dark" id="crop-dark"></div>
+          <div class="crop-zone" id="crop-zone"></div>
+        </div>
+        <div class="crop-hint" id="crop-hint">Крути колесо мыши — зум · тащи мышкой — двигай</div>
         <div style="display:flex;gap:10px;width:100%;max-width:340px">
           <button class="btn btn-sm" id="crop-cancel" type="button" style="flex:1">Отмена</button>
           <button class="btn btn-primary btn-sm" id="crop-save" type="button" style="flex:1">Сохранить</button>

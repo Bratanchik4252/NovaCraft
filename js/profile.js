@@ -442,7 +442,6 @@
       { label: 'HD 128×64', outW: 150, outH: 240, pack: 2 },
       { label: 'UHD 256×128', outW: 200, outH: 320, pack: 4 },
     ];
-
     makeFileDrop($('#cape-drop'), $('#cape-input'), file => {
       if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
         if (capeStatus) capeStatus.textContent = 'Можно загружать только PNG, JPG, WEBP или GIF';
@@ -477,11 +476,10 @@
           if (capeStatus) capeStatus.textContent = 'Плащ сохранён (' + type.label + ')';
           refreshSkinButtons();
         }, {
-          title: 'Настрой плащ — то, что останется в рамке, станет плащем',
-          aspect: 1.6,          // рамка вертикальная 10:16, как плащ на спине (выше шире? нет — выше + уже)
-          types: CAPE_CROP_TYPES,
+          title: 'Настрой плащ — фото затемнено, прямоугольник в центре — твой будущий плащ',
           isCape: true,
-          frame: [160, 200, 240], // ширина рамки в модалке под каждый тип
+          types: CAPE_CROP_TYPES,
+          frame: [160, 200, 240], // ширина прямоугольника в модалке под каждый тип
         });
       };
       reader.readAsDataURL(file);
@@ -516,12 +514,6 @@
       });
     }
 
-    const AVATAR_CROP_TYPES = [
-      { label: '64×64', outW: 64, outH: 64, pack: 1 },
-      { label: '128×128', outW: 128, outH: 128, pack: 2 },
-      { label: '256×256', outW: 256, outH: 256, pack: 4 },
-    ];
-
     makeFileDrop($('#avatar-drop'), $('#avatar-input'), file => {
       if (file.size > MAX_MEDIA) {
         if (avatarStatus) avatarStatus.textContent = 'Файл больше 5 МБ';
@@ -542,10 +534,9 @@
             if (preview) { preview.src = dataUrl; preview.style.display = ''; }
             refreshSkinButtons();
           }, {
-            title: 'Настрой аватарку — куда наведёшь рамку, там и лицо',
-            aspect: 1,
-            types: AVATAR_CROP_TYPES,
-            frame: [160, 200, 240],
+            title: 'Настрой аватарку — круг в центре это она, двигай фото и зуми колесом',
+            isCape: false,
+            types: [{ label: '256×256', outW: 256, outH: 256, pack: 1 }],
           });
         }
       };
@@ -553,81 +544,102 @@
     });
   }
 
-  // ---------- Кадрирование (универсально: аватарка — квадрат, плащ — рамка 10:16) ----------
-  // cfg: { title, aspect, types:[{label,outW,outH,pack}], isCape, frame:[ширины рамки] }
-  // onSave(canvas, type) — тип выбранного слайдера.
+  // ---------- Кадрирование ----------
+  // Аватарка: фиксированный КРУГ (менять размер нельзя), фото затемнено вне круга.
+  // Плащ: прямоугольник 10:16, размер переключается пилюлями (Классик/HD/UHD).
+  // Зум — колесо мыши, движение — перетаскивание. Слайдеров нет.
+  // cfg: { title, isCape, types:[{label,outW,outH,pack}], frame:[ширины рамки в модалке] }
+  // onSave(canvas, type) — type у аватарки всегда types[0].
   function openCrop(dataUrl, onSave, cfg) {
     const overlay = $('#crop-overlay');
     const box = $('#crop-box');
     const img = $('#crop-img');
+    const dark = $('#crop-dark');
+    const zone = $('#crop-zone');
+    const typeRow = $('#crop-type-row');
     const typePills = $('#crop-type-pills');
-    const zoomPills = $('#crop-zoom-pills');
     const typeLabel = $('#crop-type-label');
     const titleEl = $('#crop-title');
+    const hint = $('#crop-hint');
     if (!overlay || !box || !img) return;
 
     cfg = cfg || {};
-    const aspect = cfg.aspect || 1;
-    const types = cfg.types || [{ label: '64×64', outW: 64, outH: 64, pack: 1 }];
-    const frameSizes = cfg.frame || [
-      Math.round(types[0].outW * 2.5),
-      Math.round(types[Math.min(1, types.length - 1)].outW * 2.5),
-      Math.round(types[types.length - 1].outW * 2.5),
-    ];
+    const isCape = !!cfg.isCape;
+    const types = cfg.types || [{ label: '256×256', outW: 256, outH: 256, pack: 1 }];
+    const frameSizes = cfg.frame || types.map(t => Math.round(t.outW * 2.5));
     if (titleEl) titleEl.textContent = cfg.title || 'Кадрирование';
-    if (typeLabel) typeLabel.textContent = cfg.isCape ? 'Тип плаща' : 'Размер аватарки';
+    if (hint) hint.textContent = 'Колесо мыши — зум · тащи мышкой — двигай зону';
 
-    // ---------- Слайдер-навигация: пилюли + бегающий индикатор (как в шапке) ----------
-    function buildPills(host, labels, onChange) {
-      if (!host) return { move() {} };
-      host.innerHTML = labels.map((l, i) =>
-        `<button type="button" class="crop-pill" data-i="${i}" role="radio">${MC.esc(l)}</button>`
-      ).join('') + '<span class="crop-pills-ind" aria-hidden="true"></span>';
-      const ind = host.querySelector('.crop-pills-ind');
-      host.querySelectorAll('.crop-pill').forEach(btn => {
-        btn.addEventListener('click', () => move(Number(btn.dataset.i), true, true));
-      });
-      function move(i, animate = true, fire = false) {
-        const btn = host.querySelector(`[data-i="${i}"]`);
-        if (!btn || !ind) return;
-        host.querySelectorAll('.crop-pill').forEach((b, bi) => b.classList.toggle('active', bi === i));
-        ind.style.width = btn.offsetWidth + 'px';
-        ind.style.transform = `translateX(${btn.offsetLeft}px)`;
-        if (!animate) {
-          ind.classList.add('no-anim');
-          requestAnimationFrame(() => requestAnimationFrame(() => ind.classList.remove('no-anim')));
-        }
-        if (fire && onChange) onChange(i);
+    // ---------- сброс от прошлого открытия ----------
+    img.onload = null;
+    img.onerror = null;
+    box.classList.remove('crop-avatar', 'crop-cape');
+    if (dark) dark.className = 'crop-dark';
+    if (zone) zone.className = 'crop-zone';
+    if (typeRow) typeRow.style.display = isCape ? '' : 'none';
+    if (typeLabel) typeLabel.textContent = isCape ? 'Размер плаща' : 'Размер аватарки';
+    box.classList.add(isCape ? 'crop-cape' : 'crop-avatar');
+
+    // ---------- размер зоны ----------
+    // у аватарки зона — круг фиксированного диаметра (не меняется!)
+    // у плаща — прямоугольник 10:16 (вертикальный), размер по выбранному типу
+    const AVATAR_ZONE = 240; // px диаметр круга в модалке
+    let zoneW = isCape ? (frameSizes[types.length - 1] || 200) : AVATAR_ZONE;
+    let zoneH = isCape ? Math.round(zoneW * 1.6) : AVATAR_ZONE;
+    let currentTypeIndex = types.length - 1;
+
+    function paintZone() {
+      if (!dark || !zone) return;
+      const r = zoneW / 2;
+      // круг: затемнение через radial-gradient (внутри круга фото светлое)
+      // прямоугольник: затемнение через box-shadow зоны (см. CSS), .crop-dark не нужен
+      dark.style.background = isCape
+        ? 'transparent'
+        : 'radial-gradient(circle ' + r + 'px at center, transparent 0%, transparent ' + (r - 1) + 'px, rgba(0,0,0,0.55) ' + r + 'px, rgba(0,0,0,0.55) 100%)';
+      zone.style.width = zoneW + 'px';
+      zone.style.height = zoneH + 'px';
+      zone.style.borderRadius = isCape ? '14px' : '50%';
+      zone.style.borderColor = 'var(--text)';
+      if (isCape) {
+        zone.classList.add('crop-rect');
+        zone.classList.remove('crop-circle');
+      } else {
+        zone.classList.add('crop-circle');
+        zone.classList.remove('crop-rect');
       }
-      move(0, false);
-      return { move };
     }
 
-    const ZOOM_STEPS = [100, 150, 200, 300, 400];
-    const typePill = buildPills(typePills, types.map(t => t.label), idx => {
-      // сохраняем видимую зону (центр в исходнике) при смене типа
-      const v = natural.w ? visibleSrc() : null;
-      currentTypeIndex = Math.max(0, Math.min(types.length - 1, idx));
-      applyFrame(currentTypeIndex);
-      cw = parseFloat(box.style.width) || 160;
-      ch = parseFloat(box.style.height) || Math.round(cw * aspect);
-      if (v && natural.w) {
-        baseScale = Math.max(cw / natural.w, ch / natural.h);
-        const scale2 = baseScale * zoom;
-        const dispW2 = natural.w * scale2;
-        const dispH2 = natural.h * scale2;
-        dx = dispW2 / 2 - (v.srcX + v.srcW / 2) * scale2;
-        dy = dispH2 / 2 - (v.srcY + v.srcH / 2) * scale2;
-      } else {
-        baseScale = Math.max(cw / natural.w, ch / natural.h);
-        dx = 0; dy = 0;
-      }
-      applyTransform();
-    });
-    const zoomPill = buildPills(zoomPills, ZOOM_STEPS.map(p => p + '%'), i => {
-      zoom = ZOOM_STEPS[i] / 100;
-      applyTransform();
-    });
+    // ---------- пилюли выбора размера (только для плаща) ----------
+    if (typePills) {
+      typePills.innerHTML = types.map((t, i) =>
+        '<button type="button" class="crop-pill' + (i === types.length - 1 ? ' active' : '') + '" data-i="' + i + '">' + MC.esc(t.label) + '</button>'
+      ).join('');
+      typePills.querySelectorAll('.crop-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          typePills.querySelectorAll('.crop-pill').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentTypeIndex = Number(btn.dataset.i);
+          // меняем размер зоны, сохраняя центр видимой области в исходнике
+          const v = natural.w ? visibleSrc() : null;
+          zoneW = frameSizes[currentTypeIndex] || zoneW;
+          zoneH = Math.round(zoneW * 1.6);
+          paintZone();
+          if (v && natural.w) {
+            // новая зона — та же видимая зона исходника, центр сохраняем
+            const cx = v.srcX + v.srcW / 2;
+            const cy = v.srcY + v.srcH / 2;
+            const scale = Math.max(zoneW / natural.w, zoneH / natural.h);
+            const dispW2 = natural.w * scale * zoom;
+            const dispH2 = natural.h * scale * zoom;
+            dx = dispW2 / 2 - cx * scale * zoom;
+            dy = dispH2 / 2 - cy * scale * zoom;
+            applyTransform(scale);
+          } else {
+            applyTransform();
+          }
+        });
+      });
+    }
 
     // ---------- состояние ----------
     img.style.display = '';
@@ -636,62 +648,69 @@
     let baseScale = 1;
     let zoom = 1;
     let dx = 0, dy = 0;
-    let cw = 160, ch = 160;
-    let currentTypeIndex = 0;
-
-    // ---------- рамка под выбранный тип ----------
-    function applyFrame(idx) {
-      const fw = frameSizes[idx] || 160;
-      const fh = Math.round(fw * aspect);
-      box.style.width = fw + 'px';
-      box.style.height = fh + 'px';
-      typePill.move(idx);
-    }
-    currentTypeIndex = types.length - 1;
-    applyFrame(currentTypeIndex); // по умолчанию самый большой (HD/UHD)
 
     img.onload = () => {
       natural.w = img.naturalWidth;
       natural.h = img.naturalHeight;
       if (!natural.w || !natural.h) { close(); if (onSave) onSave(null, types[0]); return; }
-      // базовый масштаб = картинка покрывает рамку целиком (без пустот)
-      cw = parseFloat(box.style.width) || 160;
-      ch = parseFloat(box.style.height) || Math.round(cw * aspect);
-      baseScale = Math.max(cw / natural.w, ch / natural.h);
-      dx = 0; dy = 0; zoom = 1;
-      zoomPill.move(0);
+      // масштаб = фото полностью покрывает зону
+      baseScale = Math.max(zoneW / natural.w, zoneH / natural.h);
+      zoom = 1; dx = 0; dy = 0;
       applyTransform();
     };
     img.onerror = () => { close(); };
 
-    // ---------- видимая область (рамка cw×ch) в координатах исходника ----------
-    function visibleSrc() {
-      const scale = baseScale * zoom;
-      const dispW = natural.w * scale;
-      const dispH = natural.h * scale;
-      return {
-        srcX: (dispW / 2 - cw / 2 - dx) / scale,
-        srcY: (dispH / 2 - ch / 2 - dy) / scale,
-        srcW: cw / scale,
-        srcH: ch / scale,
-      };
-    }
-
-    function applyTransform() {
+    function applyTransform(forceScale) {
+      if (forceScale) baseScale = forceScale;
       const dispW = natural.w * baseScale * zoom;
       const dispH = natural.h * baseScale * zoom;
-      const maxDx = (dispW - cw) / 2;
-      const maxDy = (dispH - ch) / 2;
+      // зона центрирована в боксе
+      const bw = box.clientWidth || 480;
+      const bh = box.clientHeight || 480;
+      const zx = (bw - zoneW) / 2;
+      const zy = (bh - zoneH) / 2;
+      const maxDx = (dispW - zoneW) / 2;
+      const maxDy = (dispH - zoneH) / 2;
       dx = Math.max(-maxDx, Math.min(maxDx, dx));
       dy = Math.max(-maxDy, Math.min(maxDy, dy));
       img.style.width = dispW + 'px';
       img.style.height = dispH + 'px';
-      img.style.left = (cw / 2 - dispW / 2 + dx) + 'px';
-      img.style.top = (ch / 2 - dispH / 2 + dy) + 'px';
+      img.style.left = (zx + zoneW / 2 - dispW / 2 + dx) + 'px';
+      img.style.top = (zy + zoneH / 2 - dispH / 2 + dy) + 'px';
       img.style.transform = 'none';
+      paintZone();
     }
 
-    // ---------- перетаскивание картинки ----------
+    // ---------- видимая зона в координатах исходника ----------
+    function visibleSrc() {
+      const scale = baseScale * zoom;
+      const dispW = natural.w * scale;
+      const dispH = natural.h * scale;
+      const bw = box.clientWidth || 480;
+      const bh = box.clientHeight || 480;
+      const zx = (bw - zoneW) / 2;
+      const zy = (bh - zoneH) / 2;
+      const imgLeft = zx + zoneW / 2 - dispW / 2 + dx;
+      const imgTop = zy + zoneH / 2 - dispH / 2 + dy;
+      return {
+        srcX: (zx - imgLeft) / scale,
+        srcY: (zy - imgTop) / scale,
+        srcW: zoneW / scale,
+        srcH: zoneH / scale,
+      };
+    }
+
+    // ---------- зум колесом ----------
+    const onWheel = e => {
+      if (!natural.w) return;
+      e.preventDefault();
+      const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoom = Math.max(1, Math.min(8, zoom * f));
+      applyTransform();
+    };
+    box.addEventListener('wheel', onWheel, { passive: false });
+
+    // ---------- перетаскивание ----------
     let dragging = false, startX = 0, startY = 0, startDx = 0, startDy = 0;
     const onMove = e => {
       if (!dragging) return;
@@ -729,8 +748,8 @@
     }, { passive: false });
 
     function close() {
-      box.style.width = ''; box.style.height = '';
       overlay.classList.remove('open');
+      box.removeEventListener('wheel', onWheel);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('touchmove', onMove);
@@ -745,15 +764,27 @@
       const canvas = document.createElement('canvas');
       canvas.width = type.outW; canvas.height = type.outH;
       const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = cfg.isCape ? false : true;
+      if (isCape) {
+        ctx.imageSmoothingEnabled = false;
+      } else {
+        // аватарка: вырезаем КРУГ (прозрачные углы)
+        ctx.imageSmoothingEnabled = true;
+        ctx.beginPath();
+        ctx.arc(type.outW / 2, type.outH / 2, Math.min(type.outW, type.outH) / 2, 0, Math.PI * 2);
+        ctx.clip();
+      }
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, v.srcX, v.srcY, v.srcW, v.srcH, 0, 0, canvas.width, canvas.height);
       if (onSave) onSave(canvas, type);
       close();
     };
 
+    paintZone();
     overlay.classList.add('open');
   }
+
+
+
 
   // ======================================================================
   //  БОНУС: голосования за проект
