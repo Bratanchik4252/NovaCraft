@@ -588,7 +588,14 @@ function initReveal() {
       }
     });
   }, { threshold: 0.15 });
-  $$('.reveal').forEach(el => io.observe(el));
+
+  const watch = () => $$('.reveal:not(.in-view)').forEach(el => io.observe(el));
+  watch();
+
+  // Контент, отрисованный позже (данные из БД и т.п.), тоже должен появиться:
+  // как только в DOM добавились новые .reveal-элементы — начинаем их наблюдать.
+  const mo = new MutationObserver(watch);
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 
 // ---------- Кастомный селект (современный дропдаун) ----------
