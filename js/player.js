@@ -31,11 +31,18 @@
   }
 
   // ---------- Шапка профиля ----------
-  // Привилегия с цветом красит имя игрока (например, красный «Создатель»)
+  // Привилегия с цветом красит имя игрока (например, красный «Создатель»).
+  // Если цвета нет — пробуем цвет префикса владельца (таблица prefixes).
   function privilegeColor(p) {
     const privs = Array.isArray(p.privileges) ? p.privileges : [];
     const colored = privs.find(pr => pr.color);
-    return colored ? colored.color : null;
+    if (colored) return colored.color;
+    try {
+      const map = JSON.parse(localStorage.getItem('mc:prefix-colors') || '{}');
+      return map[String(p.name).toLowerCase()] || null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function renderHeader(p) {

@@ -9,6 +9,29 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .adm-actions { white-space: nowrap; }
+    .adm-actions button { margin-right: 6px; }
+    .adm-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+    .adm-forms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .adm-tags-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .adm-ticket-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; min-height: 420px; }
+    .adm-ticket-list { overflow-y: auto; max-height: 460px; }
+    .adm-ticket-item { padding: 12px 14px; border-radius: 10px; cursor: pointer; margin-bottom: 8px; }
+    .adm-ticket-item:hover { background: var(--glass-bg-hover); }
+    .adm-ticket-item.active { background: var(--glass-bg-hover); outline: 1px solid var(--glass-border-hover); }
+    .adm-ticket-item.closed { opacity: 0.55; }
+    .adm-thread-body { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; padding: 4px 2px; }
+    .adm-msg { max-width: 82%; padding: 10px 14px; border-radius: 12px; background: var(--glass-bg); }
+    .adm-msg.mine { align-self: flex-end; background: rgba(66,153,225,0.18); }
+    .adm-msg .msg-author { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
+    .adm-color-cell { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: middle; margin-right: 6px; box-shadow: 0 0 0 1px rgba(0,0,0,0.3); }
+    .badge-ok { color: var(--success); }
+    .badge-off { color: var(--muted); }
+    @media (max-width: 760px) {
+      .adm-forms-grid, .adm-ticket-layout { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
 
@@ -17,7 +40,7 @@
   <main class="page-content">
     <div class="page-hero anim-fade-up">
       <h1 class="text-glow">Админ-панель</h1>
-      <p>Управление привилегиями, префиксами, банлистом и составом команды.</p>
+      <p>Сервера, баны, обращения, товары, команда, правила и префиксы.</p>
     </div>
 
     <div id="admin-access" class="glass anim-fade-up delay-1" style="padding:32px;text-align:center;display:none">
@@ -28,10 +51,13 @@
     <div class="cabinet anim-fade-up delay-1" id="admin-panel" style="display:none">
       <aside class="glass cab-side">
         <div class="cab-tab active" data-tab="level" style="cursor:pointer" id="admin-tab-level">Уровни админов</div>
-        <div class="cab-tab" data-tab="priv" style="cursor:pointer">Привилегии</div>
-        <div class="cab-tab" data-tab="prefix" style="cursor:pointer">Префиксы</div>
-        <div class="cab-tab" data-tab="ban" style="cursor:pointer">Банлист</div>
+        <div class="cab-tab" data-tab="servers" style="cursor:pointer">Сервера</div>
+        <div class="cab-tab" data-tab="bans" style="cursor:pointer">Банлист</div>
+        <div class="cab-tab" data-tab="tickets" style="cursor:pointer">Обращения</div>
+        <div class="cab-tab" data-tab="products" style="cursor:pointer">Товары</div>
         <div class="cab-tab" data-tab="team" style="cursor:pointer">Команда</div>
+        <div class="cab-tab" data-tab="rules" style="cursor:pointer">Правила</div>
+        <div class="cab-tab" data-tab="prefixes" style="cursor:pointer">Префиксы</div>
       </aside>
 
       <section>
@@ -74,37 +100,112 @@
           </div>
         </div>
 
-        <!-- ============ ПРИВИЛЕГИИ ============ -->
-        <div class="cab-panel" id="panel-priv">
-          <h3>Привилегии</h3>
-          <p class="text-muted">Список привилегий. Выдача игрокам появится позже.</p>
-          <div class="glass cab-card" id="priv-list"></div>
-        </div>
-
-        <!-- ============ ПРЕФИКСЫ ============ -->
-        <div class="cab-panel" id="panel-prefix">
-          <h3>Префиксы</h3>
-          <p class="text-muted">Доступные и закрытые префиксы.</p>
-          <div class="glass cab-card" id="prefix-list"></div>
+        <!-- ============ СЕРВЕРА ============ -->
+        <div class="cab-panel" id="panel-servers">
+          <h3>Сервера</h3>
+          <p class="text-muted">Список серверов и их модов (показываются на servers.html).</p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="servers-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="servers" type="button">+ Добавить сервер</button>
+            </div>
+            <div id="servers-list"></div>
+          </div>
         </div>
 
         <!-- ============ БАНЛИСТ ============ -->
-        <div class="cab-panel" id="panel-ban">
+        <div class="cab-panel" id="panel-bans">
           <h3>Банлист</h3>
-          <p class="text-muted">Заблокированные игроки.</p>
-          <div class="glass cab-card" id="ban-list"></div>
+          <p class="text-muted">Заблокированные игроки (таблица bans.html).</p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="bans-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="bans" type="button">+ Добавить бан</button>
+            </div>
+            <div id="bans-list"></div>
+          </div>
+        </div>
+
+        <!-- ============ ОБРАЩЕНИЯ (ТИКЕТЫ) ============ -->
+        <div class="cab-panel" id="panel-tickets">
+          <h3>Обращения</h3>
+          <p class="text-muted">Все тикеты игроков. Ответ пишется от имени «Администрация».</p>
+          <div class="glass cab-card">
+            <div id="tickets-app"></div>
+          </div>
+        </div>
+
+        <!-- ============ ТОВАРЫ ============ -->
+        <div class="cab-panel" id="panel-products">
+          <h3>Товары магазина</h3>
+          <p class="text-muted">Привилегии (категория priv) и предметы (items) для shop.html.</p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="products-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="products" type="button">+ Добавить товар</button>
+            </div>
+            <div id="products-list"></div>
+          </div>
         </div>
 
         <!-- ============ КОМАНДА ============ -->
         <div class="cab-panel" id="panel-team">
           <h3>Команда</h3>
-          <p class="text-muted">Состав администрации проекта.</p>
-          <div class="glass cab-card" id="team-list"></div>
+          <p class="text-muted">Состав администрации проекта (team.html).</p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="team-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="team" type="button">+ Добавить участника</button>
+            </div>
+            <div id="team-list"></div>
+          </div>
+        </div>
+
+        <!-- ============ ПРАВИЛА ============ -->
+        <div class="cab-panel" id="panel-rules">
+          <h3>Правила</h3>
+          <p class="text-muted">Аккордеоны на rules.html. Секция: project — правила проекта, servers — правила серверов.</p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="rules-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="rules" type="button">+ Добавить правило</button>
+            </div>
+            <div id="rules-list"></div>
+          </div>
+        </div>
+
+        <!-- ============ ПРЕФИКСЫ ============ -->
+        <div class="cab-panel" id="panel-prefixes">
+          <h3>Префиксы</h3>
+          <p class="text-muted">
+            Доступные и закрытые префиксы. Если задан <b>владелец</b> и <b>цвет</b> — ник владельца красится
+            в шапке и в профиле игрока.
+          </p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="prefixes-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="prefixes" type="button">+ Добавить префикс</button>
+            </div>
+            <div id="prefixes-list"></div>
+          </div>
         </div>
 
       </section>
     </div>
   </main>
+
+  <!-- Модалка добавления/редактирования -->
+  <div class="modal-overlay" id="crud-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:560px">
+      <h3 id="crud-title" style="margin-bottom:16px"></h3>
+      <div id="crud-form" class="adm-forms-grid"></div>
+      <span class="error-msg" id="crud-error" style="display:block;margin-top:10px"></span>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn btn-primary" id="crud-save" type="button" style="flex:1">Сохранить</button>
+        <button class="btn" id="crud-cancel" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
 
   <footer id="site-footer"></footer>
 
@@ -120,13 +221,14 @@
       const user = getCurrentUser();
       if (!user) {
         accessBox.style.display = '';
-        accessBox.innerHTML = '<h3>Нет доступа</h3><p class="text-muted">Войдите в аккаунт администратора или создателя.</p>';
         return;
       }
 
+      // Уровень админа: из облака (profiles.admin_level) или из профиля
+      // (localStorage-режим, поле adminLevel у пользователя).
       const myLevel = (DB && DB.configured && DB.adminLevel)
         ? await DB.adminLevel(user.id, user.name)
-        : 0;
+        : (Number(user.adminLevel) || 0);
       const isCreator = myLevel >= 2;
       const isAdmin = myLevel >= 1;
 
@@ -138,25 +240,433 @@
 
       panel.style.display = '';
 
-      // Вкладки
+      // ---------- Вкладки ----------
       const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
       tabs.forEach(t => t.addEventListener('click', () => {
         tabs.forEach(x => x.classList.toggle('active', x === t));
         panel.querySelectorAll('.cab-panel').forEach(p => {
           p.classList.toggle('active', p.id === 'panel-' + t.dataset.tab);
         });
+        if (t.dataset.tab === 'tickets') renderTickets();
       }));
 
-      // Секция уровней — только для создателя
+      // ---------- Секция уровней — только для создателя ----------
       if (!isCreator) {
         document.getElementById('panel-level').innerHTML =
           '<h3>Уровни админов</h3><p class="text-muted">Эту секцию видит только создатель (уровень 2).</p>';
       }
 
-      // ---------- Выдача админки ----------
+      // ============================================================
+      // Конфигурация таблиц: поля форм, колонки, localStorage-ключ
+      // ============================================================
+      const TABLES = {
+        servers: {
+          label: 'Сервер',
+          columns: [['name', 'Название'], ['version', 'Версия'], ['online', 'Онлайн'], ['max_online', 'Макс.'], ['modsCount', 'Моды']],
+          fields: [
+            { key: 'name', label: 'Название', type: 'text', required: true },
+            { key: 'version', label: 'Версия (например 1.12.2)', type: 'text' },
+            { key: 'description', label: 'Описание', type: 'textarea' },
+            { key: 'online', label: 'Онлайн', type: 'number' },
+            { key: 'max_online', label: 'Макс. онлайн', type: 'number' },
+            { key: 'mods', label: 'Моды (по одному в строке)', type: 'tags' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+          ],
+        },
+        bans: {
+          label: 'Бан',
+          columns: [['nick', 'Ник'], ['reason', 'Причина'], ['banned_by', 'Кем'], ['bannedDate', 'Когда'], ['active', 'Активен']],
+          fields: [
+            { key: 'nick', label: 'Ник игрока', type: 'text', required: true },
+            { key: 'reason', label: 'Причина', type: 'text' },
+            { key: 'banned_by', label: 'Кто забанил', type: 'text' },
+            { key: 'banned_at', label: 'Дата бана (ISO, можно пусто)', type: 'text' },
+            { key: 'expires_at', label: 'Дата окончания (ISO, можно пусто)', type: 'text' },
+            { key: 'active', label: 'Активен', type: 'checkbox' },
+          ],
+        },
+        products: {
+          label: 'Товар',
+          columns: [['name', 'Название'], ['category', 'Категория'], ['rub', 'Рубли'], ['coins', 'Монеты'], ['sort', 'Порядок']],
+          fields: [
+            { key: 'name', label: 'Название', type: 'text', required: true },
+            { key: 'category', label: 'Категория', type: 'select', options: [['priv', 'Привилегия'], ['items', 'Предмет']] },
+            { key: 'rub', label: 'Цена в рублях (за 1 мес для привилегий)', type: 'number' },
+            { key: 'coins', label: 'Цена в монетах', type: 'number' },
+            { key: 'description', label: 'Описание (для предметов)', type: 'textarea' },
+            { key: 'features', label: 'Возможности привилегии (по одной в строке)', type: 'tags' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+          ],
+        },
+        team: {
+          label: 'Участник',
+          columns: [['name', 'Имя'], ['rolesText', 'Роли']],
+          fields: [
+            { key: 'name', label: 'Имя (ник)', type: 'text', required: true },
+            { key: 'roles', label: 'Роли (по одной в строке)', type: 'tags' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+          ],
+        },
+        rules: {
+          label: 'Правило',
+          columns: [['section', 'Секция'], ['title', 'Заголовок'], ['textPreview', 'Текст']],
+          fields: [
+            { key: 'section', label: 'Секция', type: 'select', options: [['project', 'Правила проекта'], ['servers', 'Правила серверов']] },
+            { key: 'title', label: 'Заголовок аккордеона', type: 'text', required: true },
+            { key: 'text', label: 'Текст', type: 'textarea' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+          ],
+        },
+        prefixes: {
+          label: 'Префикс',
+          columns: [['colorCell', 'Цвет'], ['name', 'Название'], ['owner', 'Владелец'], ['public', 'Доступен']],
+          fields: [
+            { key: 'name', label: 'Название префикса', type: 'text', required: true },
+            { key: 'color', label: 'Цвет (красит ник владельца)', type: 'color' },
+            { key: 'owner', label: 'Владелец (ник игрока, необязательно)', type: 'text' },
+            { key: 'public', label: 'Доступен всем', type: 'checkbox' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+          ],
+        },
+      };
+
+      const cloud = DB && DB.configured;
+
+      // localStorage-фолбэк для админ-таблиц (только когда Supabase не настроен)
+      function lsGet(t) {
+        try { return JSON.parse(localStorage.getItem('mc:admin:' + t)) || []; } catch (e) { return []; }
+      }
+      function lsSet(t, rows) {
+        try { localStorage.setItem('mc:admin:' + t, JSON.stringify(rows)); } catch (e) {}
+      }
+
+      async function loadRows(table) {
+        if (cloud) {
+          const list = {
+            servers: DB.listServers, bans: DB.listBans, products: DB.listProducts,
+            team: DB.listTeam, rules: DB.listRules, prefixes: DB.listPrefixes,
+          }[table];
+          if (list) {
+            try {
+              const rows = await list.call(DB);
+              if (Array.isArray(rows)) return rows;
+            } catch (e) {}
+          }
+          return [];
+        }
+        return lsGet(table);
+      }
+
+      async function saveRow(table, row, isEdit) {
+        if (cloud) {
+          const clean = Object.assign({}, row);
+          if (!clean.id) delete clean.id; // вставка: id сгенерирует БД
+          const res = await DB.adminUpsert(table, clean);
+          return res.ok ? null : (res.error || 'Ошибка сохранения');
+        }
+        const rows = lsGet(table);
+        if (isEdit) {
+          const i = rows.findIndex(r => String(r.id) === String(row.id));
+          if (i >= 0) rows[i] = row;
+        } else {
+          row.id = row.id || ('l_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6));
+          rows.push(row);
+        }
+        lsSet(table, rows);
+        return null;
+      }
+
+      async function deleteRow(table, id) {
+        if (cloud) {
+          const res = await DB.adminDelete(table, id);
+          return res.ok ? null : (res.error || 'Ошибка удаления');
+        }
+        lsSet(table, lsGet(table).filter(r => String(r.id) !== String(id)));
+        return null;
+      }
+
+      // ============================================================
+      // Рендер таблиц + модалка формы
+      // ============================================================
+      function fieldHtml(f) {
+        if (f.type === 'textarea') {
+          return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
+            <textarea id="f-${f.key}" rows="3" placeholder="${MC.esc(f.placeholder || '')}"></textarea></div>`;
+        }
+        if (f.type === 'select') {
+          return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
+            <select id="f-${f.key}">${f.options.map(o => `<option value="${MC.esc(o[0])}">${MC.esc(o[1])}</option>`).join('')}</select></div>`;
+        }
+        if (f.type === 'checkbox') {
+          return `<div class="field" style="display:flex;align-items:center;gap:8px;min-height:40px">
+            <input type="checkbox" id="f-${f.key}" style="width:18px;height:18px">
+            <label for="f-${f.key}" style="margin:0">${MC.esc(f.label)}</label></div>`;
+        }
+        if (f.type === 'color') {
+          return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
+            <input type="color" id="f-${f.key}" style="height:44px;padding:4px"></div>`;
+        }
+        return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
+          <input type="${f.type === 'number' ? 'number' : 'text'}" id="f-${f.key}" placeholder="${MC.esc(f.placeholder || '')}"></div>`;
+      }
+
+      let modalTable = null, modalRow = null;
+
+      function openForm(table, row) {
+        const cfg = TABLES[table];
+        modalTable = table;
+        modalRow = row ? Object.assign({}, row) : {};
+        document.getElementById('crud-title').textContent =
+          (row ? 'Редактировать ' : 'Добавить ') + cfg.label.toLowerCase();
+        document.getElementById('crud-form').innerHTML = cfg.fields.map(fieldHtml).join('');
+        document.getElementById('crud-error').textContent = '';
+
+        cfg.fields.forEach(f => {
+          const el = document.getElementById('f-' + f.key);
+          if (!el) return;
+          let v = row ? row[f.key] : (f.type === 'checkbox' ? false : '');
+          if (f.type === 'tags' && Array.isArray(v)) v = v.join('\n');
+          if (f.type === 'select' && !f.options.some(o => o[0] === String(v)) && v == null) v = f.options[0][0];
+          if (f.type === 'checkbox') {
+            el.checked = !!v;
+          } else {
+            el.value = (v == null ? '' : v);
+          }
+        });
+
+        document.getElementById('crud-modal').classList.add('open');
+        const first = cfg.fields.find(f => f.type !== 'checkbox');
+        if (first) setTimeout(() => { const el = document.getElementById('f-' + first.key); if (el) el.focus(); }, 50);
+      }
+
+      document.getElementById('crud-save').addEventListener('click', async () => {
+        const cfg = TABLES[modalTable];
+        if (!cfg) return;
+        const err = document.getElementById('crud-error');
+        const row = Object.assign({}, modalRow || {});
+        let bad = null;
+        cfg.fields.forEach(f => {
+          const el = document.getElementById('f-' + f.key);
+          if (!el) return;
+          let v;
+          if (f.type === 'checkbox') v = el.checked;
+          else if (f.type === 'tags') {
+            v = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+          } else v = el.value.trim();
+          if (f.type === 'number') v = v === '' ? 0 : Number(v);
+          if (f.required && !v) bad = 'Заполни поле «' + f.label + '»';
+          row[f.key] = v;
+        });
+        if (bad) { err.textContent = bad; return; }
+
+        const isEdit = !!row.id;
+        const e = await saveRow(modalTable, row, isEdit);
+        if (e) { err.textContent = e; return; }
+        document.getElementById('crud-modal').classList.remove('open');
+        renderTable(modalTable);
+      });
+
+      document.getElementById('crud-cancel').addEventListener('click', () => {
+        document.getElementById('crud-modal').classList.remove('open');
+      });
+      document.getElementById('crud-modal').addEventListener('click', e => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+      });
+
+      // Кнопки «+ Добавить»
+      document.querySelectorAll('[data-new]').forEach(b => {
+        b.addEventListener('click', () => openForm(b.dataset.new, null));
+      });
+
+      function cellVal(cfg, r, c) {
+        if (c === 'modsCount') return (Array.isArray(r.mods) ? r.mods.length : 0) + ' шт.';
+        if (c === 'rolesText') return Array.isArray(r.roles) ? r.roles.join(', ') : '—';
+        if (c === 'bannedDate') return r.banned_at ? new Date(r.banned_at).toLocaleDateString('ru-RU') : '—';
+        if (c === 'textPreview') return String(r.text || '').slice(0, 60);
+        if (c === 'colorCell') {
+          return r.color
+            ? `<span class="adm-color-cell" style="background:${MC.esc(r.color)}"></span>${MC.esc(r.name || '')}`
+            : MC.esc(r.name || '—');
+        }
+        if (c === 'public') return r.public ? '<span class="badge-ok">да</span>' : '<span class="badge-off">нет</span>';
+        if (c === 'active') return r.active !== false ? '<span class="badge-ok">да</span>' : '<span class="badge-off">нет</span>';
+        if (c === 'section') return r.section === 'servers' ? 'Сервера' : 'Проект';
+        const v = r[c];
+        return v == null || v === '' ? '—' : String(v);
+      }
+
+      async function renderTable(table) {
+        const cfg = TABLES[table];
+        const rows = await loadRows(table);
+        const host = document.getElementById(table + '-list');
+        const count = document.getElementById(table + '-count');
+        if (count) count.textContent = rows.length ? rows.length + ' шт.' : 'Пусто';
+
+        if (!rows.length) {
+          host.innerHTML = '<p class="text-muted" style="padding:8px 0">Ничего нет. Нажми «+ Добавить».</p>';
+          return;
+        }
+        host.innerHTML = '<table class="adm-table"><thead><tr>' +
+          cfg.columns.map(c => '<th>' + MC.esc(c[1]) + '</th>').join('') +
+          '<th></th></tr></thead><tbody>' +
+          rows.map((r, i) => {
+            const rowId = String(r.id).replace(/"/g, '');
+            return '<tr>' +
+              cfg.columns.map(c => '<td>' + cellVal(cfg, r, c[0]) + '</td>').join('') +
+              `<td class="adm-actions">
+                <button class="btn btn-sm" data-edit="${i}" data-rowid="${rowId}" type="button">Изменить</button>
+                <button class="btn btn-sm" data-del="${i}" data-rowid="${rowId}" type="button" style="color:var(--danger,#ff5b5b)">Удалить</button>
+              </td></tr>`;
+          }).join('') + '</tbody></table>';
+
+        host.querySelectorAll('[data-edit]').forEach(b => {
+          b.addEventListener('click', () => openForm(table, rows[Number(b.dataset.edit)]));
+        });
+        host.querySelectorAll('[data-del]').forEach(b => {
+          b.addEventListener('click', async () => {
+            if (!confirm('Удалить запись?')) return;
+            const id = b.dataset.rowid;
+            const e = await deleteRow(table, id);
+            if (e) { alert(e); return; }
+            renderTable(table);
+            if (table === 'prefixes') refreshPrefixColors();
+          });
+        });
+      }
+
+      ['servers', 'bans', 'products', 'team', 'rules', 'prefixes'].forEach(t => renderTable(t));
+
+      // ============================================================
+      // Тикеты (обращения)
+      // ============================================================
+      const ticketsApp = document.getElementById('tickets-app');
+      let tickets = [], currentTicketId = null;
+
+      function esc2(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      async function loadTickets() {
+        if (cloud) {
+          try { tickets = await DB.adminListTickets(); } catch (e) { tickets = []; }
+        } else {
+          try { tickets = JSON.parse(localStorage.getItem('mc:tickets')) || []; } catch (e) { tickets = []; }
+        }
+        // сортируем: активные сверху
+        tickets.sort((a, b) => (a.status === b.status ? 0 : a.status === 'open' ? -1 : 1));
+      }
+
+      async function renderTickets() {
+        await loadTickets();
+        if (!currentTicketId && tickets.length) currentTicketId = tickets[0].id;
+        if (currentTicketId && !tickets.some(t => String(t.id) === String(currentTicketId))) currentTicketId = tickets[0] ? tickets[0].id : null;
+
+        const list = tickets.map(t => `
+          <div class="adm-ticket-item ${t.status === 'closed' ? 'closed' : ''} ${String(t.id) === String(currentTicketId) ? 'active' : ''}"
+               data-tid="${esc2(t.id)}">
+            <div style="font-weight:700">${esc2(t.subject)}</div>
+            <div class="text-muted" style="font-size:12px;margin-top:3px">
+              ${esc2(t.owner)} · ${esc2(t.createdAt)} · ${t.status === 'open' ? '<span class="badge-ok">в работе</span>' : 'закрыто'}
+            </div>
+          </div>`).join('');
+
+        const cur = tickets.find(t => String(t.id) === String(currentTicketId));
+        const msgs = cur ? cur.messages.map(m => `
+          <div class="adm-msg ${m.author === 'Администрация' ? 'mine' : ''}">
+            <span class="msg-author">${esc2(m.author)} · ${esc2(m.time || '')}</span>
+            ${esc2(m.text)}
+          </div>`).join('') : '<p class="text-muted">Выбери обращение слева.</p>';
+
+        ticketsApp.innerHTML = `
+          <div class="adm-ticket-layout">
+            <div class="adm-ticket-list">${list || '<p class="text-muted">Обращений пока нет.</p>'}</div>
+            <div>
+              <div class="adm-thread-body">${msgs}</div>
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <input type="text" id="adm-ticket-input" placeholder="Ответ игроку..." autocomplete="off" maxlength="500" style="flex:1"
+                  ${cur && cur.status === 'open' ? '' : 'disabled'}>
+                <button class="btn btn-primary" id="adm-ticket-send" type="button"
+                  ${cur && cur.status === 'open' ? '' : 'disabled'}>Отправить</button>
+                <button class="btn" id="adm-ticket-close" type="button">
+                  ${cur && cur.status === 'open' ? 'Закрыть' : 'Открыть заново'}
+                </button>
+              </div>
+              <div class="text-muted" style="font-size:12px;margin-top:8px" id="adm-ticket-note">
+                ${cur && cur.status === 'open' ? '' : 'Обращение закрыто — ответы отключены.'}
+              </div>
+            </div>
+          </div>`;
+
+        ticketsApp.querySelectorAll('.adm-ticket-item').forEach(el => {
+          el.addEventListener('click', () => {
+            currentTicketId = el.dataset.tid;
+            renderTickets();
+          });
+        });
+
+        const input = document.getElementById('adm-ticket-input');
+        const send = document.getElementById('adm-ticket-send');
+        const closeBtn = document.getElementById('adm-ticket-close');
+        if (!cur) return;
+
+        const nowTime = () => new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+        const saveTicket = async () => {
+          if (cloud) {
+            try { await DB.updateTicket(cur.id, { messages: cur.messages, status: cur.status }); } catch (e) {}
+          } else {
+            try { localStorage.setItem('mc:tickets', JSON.stringify(tickets)); } catch (e) {}
+          }
+        };
+
+        const doSend = async () => {
+          const text = (input.value || '').trim();
+          if (!text || cur.status !== 'open') return;
+          cur.messages.push({ author: 'Администрация', text, time: nowTime() });
+          await saveTicket();
+          // уведомление игроку об ответе
+          if (cur.owner && window.Notif && window.Notif.pushToName) {
+            window.Notif.pushToName(cur.owner, 'appeal', 'Ответ администрации',
+              'По обращению «' + cur.subject + '»: ' + text, 'appeals.html');
+          }
+          renderTickets();
+        };
+
+        send.addEventListener('click', doSend);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(); });
+
+        closeBtn.addEventListener('click', async () => {
+          cur.status = cur.status === 'open' ? 'closed' : 'open';
+          if (cur.status === 'closed') {
+            cur.messages.push({ author: 'Администрация', text: 'Обращение закрыто.', time: nowTime() });
+          }
+          await saveTicket();
+          renderTickets();
+        });
+      }
+
+      // ============================================================
+      // Цвет префикса по владельцу (для шапки/профилей)
+      // ============================================================
+      window.refreshPrefixColors = async function () {
+        if (!cloud) return;
+        try {
+          const rows = await DB.listPrefixes();
+          const map = {};
+          (Array.isArray(rows) ? rows : []).forEach(p => {
+            if (p.owner && p.color) map[String(p.owner).toLowerCase()] = p.color;
+          });
+          localStorage.setItem('mc:prefix-colors', JSON.stringify(map));
+        } catch (e) {}
+      };
+      refreshPrefixColors();
+
+      // ============================================================
+      // Уровни админов (секция для создателя)
+      // ============================================================
       let foundTarget = null;
 
-      document.getElementById('adm-find').addEventListener('click', async () => {
+      document.getElementById('adm-find')?.addEventListener('click', async () => {
         const q = document.getElementById('adm-query').value.trim();
         const status = document.getElementById('adm-find-status');
         status.textContent = '';
@@ -186,7 +696,7 @@
         });
       });
 
-      document.getElementById('adm-set').addEventListener('click', async () => {
+      document.getElementById('adm-set')?.addEventListener('click', async () => {
         const status = document.getElementById('adm-set-status');
         status.textContent = '';
         if (!foundTarget) { status.textContent = 'Сначала найдите аккаунт'; return; }
@@ -200,32 +710,13 @@
         document.getElementById('adm-found-level').textContent = 'Текущий уровень: ' + lvName;
       });
 
-      // ---------- Просмотр таблиц (для всех админов) ----------
-      function renderTable(host, rows, cols) {
-        if (!rows.length) {
-          host.innerHTML = '<p class="text-muted" style="padding:8px 0">Пусто. Добавь данные позже.</p>';
-          return;
-        }
-        host.innerHTML = '<table class="adm-table"><thead><tr>' +
-          cols.map(c => '<th>' + MC.esc(c) + '</th>').join('') +
-          '</tr></thead><tbody>' +
-          rows.map(r => '<tr>' + cols.map(c => '<td>' + MC.esc(String(r[c] ?? '—')) + '</td>').join('') + '</tr>').join('') +
-          '</tbody></table>';
+      if (!cloud) {
+        const note = document.createElement('p');
+        note.className = 'text-muted';
+        note.style.cssText = 'margin-top:14px;font-size:13px';
+        note.innerHTML = '⚠ Supabase не подключён — изменения сохраняются <b>локально в браузере</b> (для теста). С реальной БД админка заработает автоматически.';
+        panel.querySelector('section').prepend(note);
       }
-
-      const load = async () => {
-        let privs = [], prefixes = [], bans = [], team = [];
-        try { privs = (DB.configured && await DB.listProducts()) || []; } catch (e) {}
-        try { prefixes = (DB.configured && await DB.listPrefixes()) || []; } catch (e) {}
-        try { bans = (DB.configured && await DB.listBans()) || []; } catch (e) {}
-        try { team = (DB.configured && await DB.listTeam()) || []; } catch (e) {}
-
-        renderTable(document.getElementById('priv-list'), privs, ['name', 'price', 'description']);
-        renderTable(document.getElementById('prefix-list'), prefixes, ['name', 'color', 'owner', 'public']);
-        renderTable(document.getElementById('ban-list'), bans, ['player', 'reason', 'duration']);
-        renderTable(document.getElementById('team-list'), team, ['name', 'role']);
-      };
-      load();
     });
   </script>
 </body>

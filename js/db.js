@@ -507,6 +507,32 @@
       return (error || !data) ? [] : data;
     },
 
+    async listRules() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('rules').select('*').order('sort');
+      return (error || !data) ? [] : data;
+    },
+
+    // ---------------- ТИКЕТЫ: все (для админки) ----------------
+    // Админ видит обращения всех игроков (RLS: is_admin()).
+    async adminListTickets() {
+      if (!this.configured) return [];
+      const { data, error } = await client
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error || !data) return [];
+      return data.map(t => ({
+        id: t.id,
+        owner: t.owner_name,
+        subject: t.subject,
+        status: t.status,
+        createdAt: new Date(t.created_at).toLocaleString('ru-RU'),
+        messages: t.messages || [],
+      }));
+    },
+
     // ---------------- АДМИНКА (управление данными) ----------------
     // Все методы проверяют уровень админа на странице admin.html.
     // При изменении уровней возвращают { ok, error }.
