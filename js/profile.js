@@ -463,31 +463,23 @@
           return;
         }
         // ==== ВРЕМЕННЫЙ ТЕСТ: без кадрирования ====
-        // Вся фотка целиком растягивается в наружную грань плаща
-        // (координаты 1..11 по X, 1..17 по Y на текстурке 64x32) + зеркало на внутреннюю.
+        // Просто берём из фотки прямоугольник (0,0)..(11,16) и кладём его
+        // в плащ на те же координаты. Больше ничего не делаем.
         const img = new Image();
         img.onload = () => {
-          const w = img.naturalWidth, h = img.naturalHeight;
           const out = document.createElement('canvas');
           out.width = 64;
           out.height = 32;
           const g = out.getContext('2d');
           g.clearRect(0, 0, out.width, out.height);
           g.imageSmoothingEnabled = false;
-          // наружная грань
-          g.drawImage(img, 0, 0, w, h, 1, 1, 10, 16);
-          // зеркало на внутреннюю грань
-          g.save();
-          g.translate(22, 0);
-          g.scale(-1, 1);
-          g.drawImage(img, 0, 0, w, h, 0, 1, 10, 16);
-          g.restore();
+          g.drawImage(img, 0, 0, 12, 17, 0, 0, 12, 17);
           const packed = out.toDataURL('image/png');
           Auth.updateCurrentUser(u => { u.cape = packed; });
           const fresh = getCurrentUser() || user;
           renderCapePreview(fresh.cape);
           window.start3D(skinCanvas, fresh.skin, fresh.cape);
-          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (тест: вся фотка без кадрирования)';
+          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (тест: кусок (0,0)-(11,16) из фотки)';
           refreshSkinButtons();
         };
         img.src = ev.target.result;
