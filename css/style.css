@@ -1806,7 +1806,7 @@ main {
 .cab-card + .cab-card { margin-top: 16px; }
 .cab-card h4 { margin-bottom: 14px; }
 
-/* ---------- 27. Скин/плащ/аватарка ---------- */
+/* ---------- 27. Скин/аватарка ---------- */
 .appearance-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1831,11 +1831,18 @@ main {
   .appearance-grid { grid-template-columns: 1fr; }
 }
 
+/* Канвас + кнопки движений справа */
+.skin-viewer {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
 .skin3d-canvas {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  max-width: 400px;
-  aspect-ratio: 400 / 475;
-  margin: 0 auto;
+  aspect-ratio: 700 / 400;
   display: block;
   cursor: grab;
   touch-action: none;
@@ -1849,12 +1856,13 @@ main {
 
 .skin3d-canvas:active { cursor: grabbing; }
 
-/* ---------- Панель управления 3D-персонажем ---------- */
+/* ---------- Панель управления 3D-персонажем (справа от канваса) ---------- */
 .skin-actions {
-  margin-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  justify-content: center;
+  min-width: 160px;
 }
 
 .skin-actions-label {
@@ -1865,15 +1873,14 @@ main {
   color: var(--muted);
 }
 
-.skin-actions-row {
+.skin-actions-col {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 
 .skin-act {
-  flex: 1;
-  min-width: 90px;
+  width: 100%;
   padding: 9px 14px;
   border-radius: 9999px;
   border: 1px solid var(--glass-border);
@@ -1899,11 +1906,11 @@ main {
   box-shadow: 0 0 14px rgba(122, 162, 255, 0.25);
 }
 
-.skin-act-jump.active {
-  border-color: var(--success, #4dff88);
-  color: var(--success, #4dff88);
-  text-shadow: 0 0 12px var(--success, #4dff88);
-  box-shadow: 0 0 14px rgba(77, 255, 136, 0.25);
+@media (max-width: 860px) {
+  .skin-viewer { flex-direction: column; }
+  .skin-actions { min-width: 0; }
+  .skin-actions-col { flex-direction: row; flex-wrap: wrap; }
+  .skin-act { flex: 1; min-width: 100px; }
 }
 
 .upload-box {

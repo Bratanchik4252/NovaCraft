@@ -7,8 +7,6 @@
 
    Управление (кнопки в кабинете) — через canvas._skin3d.controls:
      setAnimation('walk'|'run'|'fly'|'idle') — смена анимации
-     rotateTo(rad)                          — плавный поворот камеры (абсолютный угол)
-     jump()                                 — прыжок (поза + подъём, потом затухает)
    ========================================================================== */
 
 'use strict';
@@ -69,84 +67,6 @@
     };
     const ANIM_SPEED = { walk: 0.6, run: 1.1, fly: 1.0, idle: 0.4 };
 
-    // ---------- Свои rAF-циклы (прыжок, поворот камеры) ----------
-    const rafs = new Set();
-    function rLoop(fn) {
-      let raf = 0;
-      const step = t => {
-        if (!rafs.has(raf)) return; // остановлено при dispose
-        if (fn(t) !== false) raf = requestAnimationFrame(step);
-      };
-      raf = requestAnimationFrame(step);
-      rafs.add(raf);
-    }
-    function rStop() {
-      rafs.forEach(id => cancelAnimationFrame(id));
-      rafs.clear();
-    }
-
-    // ---------- Прыжок ----------
-    // Поза: руки вверх, ноги поджаты; тело приподнимается и опускается.
-    let jumpT = 0; // 1 -> 0
-    function doJump() {
-      if (jumpT > 0 || !viewer.playerObject) return;
-      jumpT = 1;
-      rLoop(() => {
-        jumpT -= 0.016 / 0.55; // прыжок ~0.55 c
-        const p = 1 - jumpT;   // 0..1
-        if (jumpT <= 0) {
-          jumpT = 0;
-          viewer.playerWrapper.position.y = 0;
-          restoreLimbs();
-          return false;
-        }
-        viewer.playerWrapper.position.y = Math.sin(p * Math.PI) * 0.9;
-        setLimbs({
-          leftArm: -2.6, rightArm: -2.6,
-          leftLeg: -1.3, rightLeg: 1.0,
-        });
-      });
-    }
-    let limbCache = null;
-    function setLimbs(poses) {
-      if (!viewer.playerObject) return;
-      if (!limbCache) {
-        limbCache = {};
-        for (const name of Object.keys(poses)) {
-          const part = viewer.playerObject[name];
-          if (part) limbCache[name] = { x: part.rotation.x, y: part.rotation.y, z: part.rotation.z };
-        }
-      }
-      for (const name of Object.keys(poses)) {
-        const part = viewer.playerObject[name];
-        if (part) part.rotation.x = poses[name];
-      }
-    }
-    function restoreLimbs() {
-      if (!limbCache) return;
-      for (const name of Object.keys(limbCache)) {
-        const part = viewer.playerObject[name];
-        if (part) {
-          part.rotation.x = limbCache[name].x;
-          part.rotation.y = limbCache[name].y;
-          part.rotation.z = limbCache[name].z;
-        }
-      }
-      limbCache = null;
-    }
-
-    // ---------- Плавный поворот камеры ----------
-    function rotateTo(rad) {
-      rLoop(() => {
-        const d = rad - viewer.playerWrapper.rotation.y;
-        if (Math.abs(d) < 0.005) {
-          viewer.playerWrapper.rotation.y = rad;
-          return false;
-        }
-        viewer.playerWrapper.rotation.y += d * 0.09;
-      });
-    }
-
     // ---------- Управление ----------
     canvas._skin3d = {
       controls: {
@@ -157,11 +77,8 @@
             viewer.animation.speed = ANIM_SPEED[name] || 1;
           } catch (e) {}
         },
-        rotateTo,
-        jump: doJump,
       },
       dispose() {
-        rStop();
         try { viewer.dispose(); } catch (e) {}
       },
     };

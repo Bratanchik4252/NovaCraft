@@ -41,22 +41,16 @@
           <div class="appearance-grid">
             <div class="glass cab-card">
               <h4>Скин (PNG, JPG, WEBP)</h4>
-              <canvas class="skin3d-canvas" id="skin3d" width="400" height="475"></canvas>
-              <div class="skin-actions" id="skin-actions">
-                <div class="skin-actions-label">Движение</div>
-                <div class="skin-actions-row">
-                  <button class="skin-act active" data-anim="walk" type="button">Ходьба</button>
-                  <button class="skin-act" data-anim="run" type="button">Бег</button>
-                  <button class="skin-act" data-anim="fly" type="button">Полёт</button>
-                  <button class="skin-act" data-anim="idle" type="button">Покой</button>
-                  <button class="skin-act skin-act-jump" id="skin-jump" type="button">Прыжок</button>
-                </div>
-                <div class="skin-actions-label">Поворот</div>
-                <div class="skin-actions-row">
-                  <button class="skin-act active" data-view="0" type="button">Спереди</button>
-                  <button class="skin-act" data-view="-90" type="button">Слева</button>
-                  <button class="skin-act" data-view="180" type="button">Сзади</button>
-                  <button class="skin-act" data-view="90" type="button">Справа</button>
+              <div class="skin-viewer">
+                <canvas class="skin3d-canvas" id="skin3d" width="700" height="400"></canvas>
+                <div class="skin-actions" id="skin-actions">
+                  <div class="skin-actions-label">Движение</div>
+                  <div class="skin-actions-col">
+                    <button class="skin-act active" data-anim="walk" type="button">Ходьба</button>
+                    <button class="skin-act" data-anim="run" type="button">Бег</button>
+                    <button class="skin-act" data-anim="fly" type="button">Полёт</button>
+                    <button class="skin-act" data-anim="idle" type="button">Покой</button>
+                  </div>
                 </div>
               </div>
               <div class="file-drop" id="skin-drop" style="margin-top:14px">

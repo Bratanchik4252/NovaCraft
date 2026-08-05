@@ -183,10 +183,8 @@
     let raf = 0;
     let ready = false;
     let modelRot = 0.55;
-    let rotTarget = null;
     let lastDrag = -1e9;
     let anim = 'walk';
-    let jump = 0;
 
     function checkReady() {
       if (skinImg.complete) {
@@ -264,36 +262,26 @@
       return out;
     }
 
-    // Параметры анимаций: [скорость фазы, размах рук/ног, размах поворота в полёте, боб, наклон рук в стороны]
+    // Параметры анимаций: [скорость фазы, размах рук/ног, руки в стороны (полёт), боб]
     const ANIMS = {
       walk: { speed: 1.0, swing: 0.55, flyArms: 0, bob: 1.0 },
       run:  { speed: 2.3, swing: 0.95, flyArms: 0, bob: 1.7 },
       fly:  { speed: 1.5, swing: 0.5, flyArms: 1, bob: 0.5 },
       idle: { speed: 0.45, swing: 0.1, flyArms: 0, bob: 0.4 },
     };
-    const JUMP_TUCK = 1.15;
 
     function loop(t) {
       if (!ready) return;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, W, H);
 
-      // плавный поворот камеры к цели
-      if (rotTarget !== null) {
-        modelRot += (rotTarget - modelRot) * 0.08;
-        if (Math.abs(rotTarget - modelRot) < 0.01) modelRot = rotTarget;
-        lastDrag = Date.now();
-      }
-
-      // тень под персонажем (сжимается во время прыжка)
-      const a = ANIMS[anim] || ANIMS.walk;
-      const jumpH = jump * 14;
-      const shadowScale = 1 - jump * 0.35;
+      // тень под персонажем
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.beginPath();
-      ctx.ellipse(CX, GROUND, 46 * shadowScale, 9 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(CX, GROUND, 46, 9, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      const a = ANIMS[anim] || ANIMS.walk;
       const phase = t / 1000 * 2.6 * a.speed;
       const swing = a.swing;
       const bob = Math.abs(Math.sin(phase)) * 1.4 * a.bob;
@@ -317,28 +305,25 @@
       if (rectEmpty(skinImg, ARM_L.front)) armL = ARM_R;
       if (rectEmpty(skinImg, LEG_L.front)) legL = LEG_R;
 
-      const lift = jumpH;
-
-      // ноги: в прыжке — поджаты; в полёте — прямые с лёгким махом
+      // ноги: в полёте — прямые с лёгким махом
       let legSwing, legSwing2;
-      if (jump > 0.05) { legSwing = -JUMP_TUCK; legSwing2 = JUMP_TUCK * 0.6; }
-      else if (a.flyArms) { legSwing = Math.sin(phase) * swing * 0.6; legSwing2 = -legSwing; }
+      if (a.flyArms) { legSwing = Math.sin(phase) * swing * 0.6; legSwing2 = -legSwing; }
       else { legSwing = Math.sin(phase) * swing; legSwing2 = Math.sin(phase + Math.PI) * swing; }
       addBox(4, 12, 4, { x: -2, y: 6, z: 0 }, { x: -2, y: 12, z: 0 }, legSwing, legL, skinImg);
       addBox(4, 12, 4, { x: 2, y: 6, z: 0 }, { x: 2, y: 12, z: 0 }, legSwing2, LEG_R, skinImg);
 
       // тело
-      addBox(8, 12, 4, { x: 0, y: 18 + bob + lift, z: 0 }, { x: 0, y: 24, z: 0 }, 0, BODY, skinImg);
+      addBox(8, 12, 4, { x: 0, y: 18 + bob, z: 0 }, { x: 0, y: 24, z: 0 }, 0, BODY, skinImg);
 
-      // руки: в прыжке подняты вверх, в полёте вытянуты в стороны
+      // руки: в полёте вытянуты в стороны
       let armSwing, armSwing2;
-      if (jump > 0.05) { armSwing = -1.6; armSwing2 = -1.6; }
-      else { armSwing = Math.sin(phase + Math.PI) * swing * 0.8; armSwing2 = Math.sin(phase) * swing * 0.8; }
-      addBox(4, 12, 4, { x: -6, y: 18 + bob + lift, z: 0 }, { x: -6, y: 24, z: 0 }, armSwing, armL, skinImg, null, flyArm);
-      addBox(4, 12, 4, { x: 6, y: 18 + bob + lift, z: 0 }, { x: 6, y: 24, z: 0 }, armSwing2, ARM_R, skinImg, null, -flyArm);
+      armSwing = Math.sin(phase + Math.PI) * swing * 0.8;
+      armSwing2 = Math.sin(phase) * swing * 0.8;
+      addBox(4, 12, 4, { x: -6, y: 18 + bob, z: 0 }, { x: -6, y: 24, z: 0 }, armSwing, armL, skinImg, null, flyArm);
+      addBox(4, 12, 4, { x: 6, y: 18 + bob, z: 0 }, { x: 6, y: 24, z: 0 }, armSwing2, ARM_R, skinImg, null, -flyArm);
 
       // голова
-      addBox(8, 8, 8, { x: 0, y: 30 + bob + lift, z: 0 }, { x: 0, y: 24, z: 0 }, Math.sin(phase * 0.5) * 0.05, HEAD, skinImg);
+      addBox(8, 8, 8, { x: 0, y: 30 + bob, z: 0 }, { x: 0, y: 24, z: 0 }, Math.sin(phase * 0.5) * 0.05, HEAD, skinImg);
 
       parts.sort((a, b) => (b.A.z + b.B.z + b.C.z) - (a.A.z + a.B.z + a.C.z));
       for (const f of parts) {
@@ -349,14 +334,8 @@
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-      // прыжок затухает
-      if (jump > 0) {
-        jump = Math.max(0, jump - 0.035);
-        if (jump <= 0) jump = 0;
-      }
-
       // самовращение, когда персонажа не крутят
-      if (rotTarget === null && Date.now() - lastDrag > 2500) modelRot += 0.004;
+      if (Date.now() - lastDrag > 2500) modelRot += 0.004;
 
       raf = requestAnimationFrame(loop);
     }
@@ -383,8 +362,6 @@
     canvas._skin3d = {
       controls: {
         setAnimation: name => { if (ANIMS[name]) anim = name; },
-        rotateTo: rad => { rotTarget = rad; lastDrag = Date.now(); },
-        jump: () => { jump = Math.min(1, jump + 0.6); },
       },
     };
   }
@@ -396,41 +373,19 @@
     window.start3D(skinCanvas, user.skin);
 
     // ---------- Управление 3D-персонажем ----------
-    // Анимации: ходьба / бег / полёт / покой + прыжок (действие) + повороты камеры.
+    // Анимации: ходьба / бег / полёт / покой. Вращение — перетаскиванием мыши.
     const animBtns = $$('#skin-actions [data-anim]');
-    const viewBtns = $$('#skin-actions [data-view]');
-    const jumpBtn = $('#skin-jump');
     const ctrl = () => skinCanvas._skin3d && skinCanvas._skin3d.controls;
 
-    function setActive(group, el) {
-      group.forEach(b => b.classList.remove('active'));
-      el.classList.add('active');
-    }
     animBtns.forEach(b => {
       b.addEventListener('click', () => {
         const c = ctrl();
         if (!c) return;
-        setActive(animBtns, b);
+        animBtns.forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
         c.setAnimation(b.dataset.anim);
       });
     });
-    viewBtns.forEach(b => {
-      b.addEventListener('click', () => {
-        const c = ctrl();
-        if (!c) return;
-        setActive(viewBtns, b);
-        c.rotateTo(Number(b.dataset.view) * Math.PI / 180);
-      });
-    });
-    if (jumpBtn) {
-      jumpBtn.addEventListener('click', () => {
-        const c = ctrl();
-        if (!c) return;
-        jumpBtn.classList.add('active');
-        setTimeout(() => jumpBtn.classList.remove('active'), 350);
-        c.jump();
-      });
-    }
 
     // ---------- Загрузка скина (drag-drop) ----------
     makeFileDrop($('#skin-drop'), $('#skin-input'), file => {
