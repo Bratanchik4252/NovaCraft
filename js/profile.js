@@ -462,25 +462,35 @@
           refreshSkinButtons();
           return;
         }
-        openCrop(ev.target.result, (canvas, type) => {
-          let packed;
-          try {
-            packed = window.packCapeCrop ? window.packCapeCrop(canvas, type.pack) : canvas.toDataURL('image/png');
-          } catch (e) {
-            packed = canvas.toDataURL('image/png');
-          }
+        // ==== ВРЕМЕННЫЙ ТЕСТ: без кадрирования ====
+        // Вся фотка целиком растягивается в наружную грань плаща
+        // (координаты 1..11 по X, 1..17 по Y на текстурке 64x32) + зеркало на внутреннюю.
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth, h = img.naturalHeight;
+          const out = document.createElement('canvas');
+          out.width = 64;
+          out.height = 32;
+          const g = out.getContext('2d');
+          g.clearRect(0, 0, out.width, out.height);
+          g.imageSmoothingEnabled = false;
+          // наружная грань
+          g.drawImage(img, 0, 0, w, h, 1, 1, 10, 16);
+          // зеркало на внутреннюю грань
+          g.save();
+          g.translate(22, 0);
+          g.scale(-1, 1);
+          g.drawImage(img, 0, 0, w, h, 0, 1, 10, 16);
+          g.restore();
+          const packed = out.toDataURL('image/png');
           Auth.updateCurrentUser(u => { u.cape = packed; });
           const fresh = getCurrentUser() || user;
           renderCapePreview(fresh.cape);
           window.start3D(skinCanvas, fresh.skin, fresh.cape);
-          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (' + type.label + ')';
+          if (capeStatus) capeStatus.textContent = 'Плащ сохранён (тест: вся фотка без кадрирования)';
           refreshSkinButtons();
-        }, {
-          title: 'Настрой плащ — фото затемнено, прямоугольник в центре — твой будущий плащ',
-          isCape: true,
-          types: CAPE_CROP_TYPES,
-          frame: [160, 200, 240], // ширина прямоугольника в модалке под каждый тип
-        });
+        };
+        img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });

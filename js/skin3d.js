@@ -56,12 +56,14 @@
       outer.x + (outer.w - dw) / 2, outer.y + (outer.h - dh) / 2, dw, dh);
 
     // Зеркало на внутреннюю грань
+    // После translate(inner.x + inner.w, 0) + scale(-1,1) экран = (inner.x + inner.w) - локальная,
+    // поэтому чтобы попасть в [inner.x, inner.x+inner.w], рисуем с локальной x = (inner.w - dw)/2
     const inner = capeInner(sc);
     g.save();
     g.translate(inner.x + inner.w, 0);
     g.scale(-1, 1);
     g.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height,
-      -(inner.x + inner.w) + (inner.x + (inner.w - dw) / 2), inner.y + (inner.h - dh) / 2, dw, dh);
+      (inner.w - dw) / 2, inner.y + (inner.h - dh) / 2, dw, dh);
     g.restore();
 
     return out.toDataURL('image/png');
