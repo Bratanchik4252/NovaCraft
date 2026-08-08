@@ -787,7 +787,7 @@
     desc.addEventListener('input', () => {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
-        Auth.updateCurrentUser(u => { u.description = desc.value.trim().slice(0, 300); });
+        Auth.updateCurrentUser(u => { u.description = desc.value.trim().slice(0, 1000); });
       }, 600);
     });
 
