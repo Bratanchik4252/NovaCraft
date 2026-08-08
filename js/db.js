@@ -475,7 +475,7 @@
       await client.from('tickets').update(patch).eq('id', id);
     },
 
-    // ---------------- ПУБЛИЧНЫЕ ДАННЫЕ (сервера, баны, магазин, команда, префиксы) ----------------
+    // ---------------- ПУБЛИЧНЫЕ ДАННЫЕ (сервера, баны, команда, префиксы) ----------------
     // Фолбэк возвращает null — страницы используют свои заглушки, пока БД пустая.
     async listServers() {
       if (!this.configured) return null;
@@ -486,12 +486,6 @@
     async listBans() {
       if (!this.configured) return null;
       const { data, error } = await client.from('bans').select('*').order('banned_at', { ascending: false });
-      return (error || !data) ? [] : data;
-    },
-
-    async listProducts() {
-      if (!this.configured) return null;
-      const { data, error } = await client.from('products').select('*').order('sort');
       return (error || !data) ? [] : data;
     },
 
@@ -537,8 +531,7 @@
     // Все методы проверяют уровень админа на странице admin.html.
     // При изменении уровней возвращают { ok, error }.
 
-    // Уровень админа текущего авторизованного пользователя (0/1/2)
-    // Уровень админа текущего авторизованного пользователя (0/1/2).
+    // Уровень админа текущего авторизованного пользователя (0/1/2/3).
     // Если по id не нашлось (у старых аккаунтов в localStorage id может
     // не совпадать с uuid из Supabase) — пробуем найти по имени.
     async adminLevel(userId, userName) {
@@ -566,7 +559,9 @@
       return result ? { id: result.id, name: result.name, adminLevel: Number(result.admin_level) || 0 } : null;
     },
 
-    // Выдать/снять админку: level = 0/1/2. Возвращает { ok, error }.
+    // Выдать/снять админку: level = 0/1/2/3. Возвращает { ok, error }.
+    // Только создатель (уровень 3) может менять уровни — проверяет RLS
+    // (profiles_update: auth.uid() = id or is_creator()).
     async adminSetLevel(targetId, level) {
       if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
       const { error } = await client.from('profiles').update({ admin_level: Number(level) || 0 }).eq('id', targetId);

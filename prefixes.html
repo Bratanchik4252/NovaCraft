@@ -17,7 +17,7 @@
   <main class="page-content">
     <div class="page-hero anim-fade-up">
       <h1 class="text-glow">Префиксы</h1>
-      <p>Красочный ник на сервере и в чате. Префиксы появятся вместе с бэкендом.</p>
+      <p>Красочный ник на сервере и в чате.</p>
     </div>
 
     <!-- Префиксы. Данные из Supabase (таблица prefixes) -->
@@ -55,8 +55,7 @@
 
       function renderCards(list, host, emptyText) {
         if (!list.length) {
-          host.innerHTML = `<div class="pfx-empty"><b>${MC.esc(emptyText)}</b>
-            <p>Администрация создаст префиксы после запуска физического сервера. Следи за новостями!</p></div>`;
+          host.innerHTML = `<div class="pfx-empty"><b>${MC.esc(emptyText)}</b></div>`;
           return;
         }
         host.innerHTML = `<div class="pfx-grid">` + list.map(p => `

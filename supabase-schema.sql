@@ -21,7 +21,7 @@ create table if not exists public.profiles (
   providers    jsonb not null default '["email"]',
   referrals    jsonb not null default '[]',
   ref_by       text,
-  admin_level  integer not null default 0,   -- 0 — игрок, 1 — администратор, 2 — создатель
+  admin_level  integer not null default 0,   -- 0 — игрок, 1 — хелпер (только обращения), 2 — администратор (всё, кроме уровней), 3 — создатель
   avatar       text,
   skin         text,
   cape         text,
@@ -97,10 +97,14 @@ create table if not exists public.servers (
   description text,
   version     text not null default '1.12.2',
   online      integer not null default 0,
+  peak_online integer not null default 0, -- пиковый онлайн (автоматически обновляет бэкенд/плагин)
   max_online  integer not null default 100,
   mods        jsonb not null default '[]', -- массив названий модов
   sort        integer not null default 0
 );
+
+-- Для уже существующей таблицы servers добавляем колонку пикового онлайна (безопасно повторять)
+alter table public.servers add column if not exists peak_online integer not null default 0;
 
 -- ---------- Банлист ----------
 create table if not exists public.bans (
@@ -111,18 +115,6 @@ create table if not exists public.bans (
   banned_at  timestamptz not null default now(),
   expires_at timestamptz,
   active     boolean not null default true
-);
-
--- ---------- Товары магазина ----------
-create table if not exists public.products (
-  id          bigint generated always as identity primary key,
-  category    text not null,              -- priv / items
-  name        text not null,
-  rub         numeric not null default 0,
-  coins       numeric not null default 0,
-  description text,
-  features    jsonb not null default '[]', -- список возможностей привилегии
-  sort        integer not null default 0
 );
 
 -- ---------- Команда проекта ----------
@@ -155,7 +147,9 @@ create table if not exists public.rules (
 -- ---------- Доступ ----------
 -- anon (публичный ключ с сайта) может читать логи и профили,
 -- писать логи (для мода) и создавать профили.
--- Помощник: авторизованный пользователь — администратор (admin_level >= 1).
+-- Хелпер (admin_level >= 1) работает только с обращениями.
+-- Администратор/создатель (admin_level >= 2) управляет контентом сайта.
+-- Создатель (admin_level >= 3) — единственный, кто может менять уровни админов.
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -167,6 +161,28 @@ as $$
   );
 $$;
 
+create or replace function public.is_staff()
+returns boolean
+language sql
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and admin_level >= 2
+  );
+$$;
+
+create or replace function public.is_creator()
+returns boolean
+language sql
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and admin_level >= 3
+  );
+$$;
+
 alter table public.profiles enable row level security;
 alter table public.logs    enable row level security;
 alter table public.notifications enable row level security;
@@ -174,7 +190,6 @@ alter table public.profile_comments enable row level security;
 alter table public.tickets enable row level security;
 alter table public.servers enable row level security;
 alter table public.bans enable row level security;
-alter table public.products enable row level security;
 alter table public.team enable row level security;
 alter table public.prefixes enable row level security;
 alter table public.rules enable row level security;
@@ -187,10 +202,10 @@ create policy "profiles_select" on public.profiles
   for select using (true);
 create policy "profiles_insert" on public.profiles
   for insert with check (true);
--- Менять профиль может только его владелец или администратор проекта.
--- Раньше было using(true) — любой залогиненный мог менять чужие профили.
+-- Менять профиль может только его владелец или создатель проекта (уровень 3).
+-- Так хелперы и администраторы не смогут выдавать себе админку.
 create policy "profiles_update" on public.profiles
-  for update using (auth.uid() = id or is_admin());
+  for update using (auth.uid() = id or is_creator());
 
 drop policy if exists "logs_select" on public.logs;
 drop policy if exists "logs_insert" on public.logs;
@@ -250,57 +265,49 @@ create policy "tickets_update" on public.tickets
 create policy "tickets_delete" on public.tickets
   for delete using (auth.uid() = owner_id or is_admin());
 
--- Публичные данные (сервера, баны, товары, команда, префиксы, правила): все читают,
--- пишет админ/сервис. Политики записи — по уровню админа (admin_level >= 1)
--- из таблицы profiles, чтобы админ-панель могла управлять данными.
+-- Публичные данные (сервера, баны, команда, префиксы, правила): все читают,
+-- пишет администратор/создатель (admin_level >= 2, функция is_staff).
+-- Хелперы (уровень 1) контент не меняют — только обращения.
 drop policy if exists "servers_select"  on public.servers;
 drop policy if exists "bans_select"     on public.bans;
-drop policy if exists "products_select" on public.products;
 drop policy if exists "team_select"     on public.team;
 drop policy if exists "prefixes_select" on public.prefixes;
 drop policy if exists "rules_select"    on public.rules;
 create policy "servers_select"  on public.servers  for select using (true);
 create policy "bans_select"     on public.bans     for select using (true);
-create policy "products_select" on public.products for select using (true);
 create policy "team_select"     on public.team     for select using (true);
 create policy "prefixes_select" on public.prefixes for select using (true);
 create policy "rules_select"    on public.rules    for select using (true);
 
 drop policy if exists "servers_admin_insert"  on public.servers;
 drop policy if exists "bans_admin_insert"     on public.bans;
-drop policy if exists "products_admin_insert" on public.products;
 drop policy if exists "team_admin_insert"     on public.team;
 drop policy if exists "prefixes_admin_insert" on public.prefixes;
 drop policy if exists "rules_admin_insert"    on public.rules;
-create policy "servers_admin_insert"  on public.servers  for insert with check (is_admin());
-create policy "bans_admin_insert"     on public.bans     for insert with check (is_admin());
-create policy "products_admin_insert" on public.products for insert with check (is_admin());
-create policy "team_admin_insert"     on public.team     for insert with check (is_admin());
-create policy "prefixes_admin_insert" on public.prefixes for insert with check (is_admin());
-create policy "rules_admin_insert"    on public.rules    for insert with check (is_admin());
+create policy "servers_admin_insert"  on public.servers  for insert with check (is_staff());
+create policy "bans_admin_insert"     on public.bans     for insert with check (is_staff());
+create policy "team_admin_insert"     on public.team     for insert with check (is_staff());
+create policy "prefixes_admin_insert" on public.prefixes for insert with check (is_staff());
+create policy "rules_admin_insert"    on public.rules    for insert with check (is_staff());
 
 drop policy if exists "servers_admin_update"  on public.servers;
 drop policy if exists "bans_admin_update"     on public.bans;
-drop policy if exists "products_admin_update" on public.products;
 drop policy if exists "team_admin_update"     on public.team;
 drop policy if exists "prefixes_admin_update" on public.prefixes;
 drop policy if exists "rules_admin_update"    on public.rules;
-create policy "servers_admin_update"  on public.servers  for update using (is_admin());
-create policy "bans_admin_update"     on public.bans     for update using (is_admin());
-create policy "products_admin_update" on public.products for update using (is_admin());
-create policy "team_admin_update"     on public.team     for update using (is_admin());
-create policy "prefixes_admin_update" on public.prefixes for update using (is_admin());
-create policy "rules_admin_update"    on public.rules    for update using (is_admin());
+create policy "servers_admin_update"  on public.servers  for update using (is_staff());
+create policy "bans_admin_update"     on public.bans     for update using (is_staff());
+create policy "team_admin_update"     on public.team     for update using (is_staff());
+create policy "prefixes_admin_update" on public.prefixes for update using (is_staff());
+create policy "rules_admin_update"    on public.rules    for update using (is_staff());
 
 drop policy if exists "servers_admin_delete"  on public.servers;
 drop policy if exists "bans_admin_delete"     on public.bans;
-drop policy if exists "products_admin_delete" on public.products;
 drop policy if exists "team_admin_delete"     on public.team;
 drop policy if exists "prefixes_admin_delete" on public.prefixes;
 drop policy if exists "rules_admin_delete"    on public.rules;
-create policy "servers_admin_delete"  on public.servers  for delete using (is_admin());
-create policy "bans_admin_delete"     on public.bans     for delete using (is_admin());
-create policy "products_admin_delete" on public.products for delete using (is_admin());
-create policy "team_admin_delete"     on public.team     for delete using (is_admin());
-create policy "prefixes_admin_delete" on public.prefixes for delete using (is_admin());
-create policy "rules_admin_delete"    on public.rules    for delete using (is_admin());
+create policy "servers_admin_delete"  on public.servers  for delete using (is_staff());
+create policy "bans_admin_delete"     on public.bans     for delete using (is_staff());
+create policy "team_admin_delete"     on public.team     for delete using (is_staff());
+create policy "prefixes_admin_delete" on public.prefixes for delete using (is_staff());
+create policy "rules_admin_delete"    on public.rules    for delete using (is_staff());

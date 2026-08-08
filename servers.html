@@ -17,7 +17,7 @@
   <main class="page-content">
     <div class="page-hero anim-fade-up">
       <h1 class="text-glow">Сервера проекта</h1>
-      <p>Выбери версию и посмотри сервера на ней. Онлайн обновляется в реальном времени.</p>
+      <p>Выбери версию и посмотри сервера на ней. Онлайн — с игровых серверов проекта.</p>
     </div>
 
     <div style="max-width:900px;margin:0 auto" id="servers-list"></div>
@@ -53,14 +53,15 @@
               mods: s.mods || [],
               wipe: s.wipe || null,
               online: Number(s.online) || 0,
+              peak_online: Number(s.peak_online) || 0,
             }));
             VERSIONS = [...new Set(SERVERS.map(s => s.version))];
           }
         } catch (e) {}
       }
 
-      // Онлайн — случайное число 0-100 (заглушка). TODO: реальный онлайн с бэкенда
-      SERVERS.forEach(s => { s.online = Math.floor(Math.random() * 101); });
+      // Онлайн и пик онлайн приходят из базы (таблица servers).
+      // TODO: реальный онлайн — бэкенд/плагин периодически пишет s.online и s.peak_online.
 
       // ВЕРСИИ и СЕРВЕРА были константами — теперь объявлены выше как let
       // (сохранено для совместимости с API админки)
@@ -122,8 +123,8 @@
                           <span>Версия: <strong>${MC.esc(s.version)}</strong></span>
                           <span>Последний вайп: <strong>${MC.esc(s.wipe || '—')}</strong></span>
                           <span>Онлайн: <strong class="server-online" data-server="${s.id}">${s.online}</strong></span>
+                          <span>Пик онлайн: <strong>${s.peak_online || 0}</strong></span>
                         </div>
-                        <a href="shop.html?server=${s.id}" class="btn btn-sm">Магазин сервера</a>
                       </div>
                     </article>
                   `).join('')}
@@ -148,19 +149,8 @@
         return 'серверов';
       }
 
-      // Обновление онлайна раз в 10 секунд без пересборки (имитация)
-      // TODO: подписка на WebSocket/SSE с бэкенда
-      setInterval(() => {
-        SERVERS.forEach(s => { s.online = Math.floor(Math.random() * 101); });
-        $$('.server-online[data-server]', host).forEach(el => {
-          const s = SERVERS.find(x => String(x.id) === el.dataset.server);
-          if (!s) return;
-          el.textContent = s.online;
-          // Красим бейдж онлайн/офлайн
-          const badge = el.closest('.badge');
-          if (badge) badge.classList.toggle('online', s.online > 0);
-        });
-      }, 10000);
+      // Онлайн и пик онлайн приходят из базы (таблица servers) и обновляются
+      // бэкендом/плагином сервера. TODO: подписка на WebSocket/SSE.
 
       render();
 

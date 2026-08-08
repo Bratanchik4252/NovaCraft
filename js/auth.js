@@ -237,7 +237,7 @@
       localStorage.removeItem(ATTEMPTS_KEY);
     },
 
-    // ---------- Утилиты (общие для магазина/кабинета) ----------
+    // ---------- Утилиты (общие для кабинета) ----------
     createUser,
     totalCoins,
     addCoins,

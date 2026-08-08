@@ -40,7 +40,7 @@
   <main class="page-content">
     <div class="page-hero anim-fade-up">
       <h1 class="text-glow">Админ-панель</h1>
-      <p>Сервера, баны, обращения, товары, команда, правила и префиксы.</p>
+      <p>Сервера, баны, обращения, команда, правила и префиксы.</p>
     </div>
 
     <div id="admin-access" class="glass anim-fade-up delay-1" style="padding:32px;text-align:center;display:none">
@@ -54,7 +54,6 @@
         <div class="cab-tab" data-tab="servers" style="cursor:pointer">Сервера</div>
         <div class="cab-tab" data-tab="bans" style="cursor:pointer">Банлист</div>
         <div class="cab-tab" data-tab="tickets" style="cursor:pointer">Обращения</div>
-        <div class="cab-tab" data-tab="products" style="cursor:pointer">Товары</div>
         <div class="cab-tab" data-tab="team" style="cursor:pointer">Команда</div>
         <div class="cab-tab" data-tab="rules" style="cursor:pointer">Правила</div>
         <div class="cab-tab" data-tab="prefixes" style="cursor:pointer">Префиксы</div>
@@ -62,11 +61,12 @@
 
       <section>
 
-        <!-- ============ УРОВНИ АДМИНОВ (только уровень 2) ============ -->
+        <!-- ============ УРОВНИ АДМИНОВ (только уровень 3) ============ -->
         <div class="cab-panel active" id="panel-level">
           <h3>Уровни админов</h3>
           <p class="text-muted">
-            Уровень <b>1</b> — администратор, уровень <b>2</b> — создатель. Выдавать админку может только создатель (уровень 2).
+            Уровень <b>1</b> — хелпер (только обращения), уровень <b>2</b> — администратор (всё, кроме выдачи админки),
+            уровень <b>3</b> — создатель. Выдавать админку может только создатель (уровень 3).
           </p>
 
           <div class="glass cab-card">
@@ -91,8 +91,9 @@
               </div>
               <div class="seg" id="adm-level-btns" style="margin-top:12px">
                 <button class="os-tab" data-lv="0" type="button">Игрок</button>
-                <button class="os-tab" data-lv="1" type="button">Администратор</button>
-                <button class="os-tab" data-lv="2" type="button">Создатель</button>
+                <button class="os-tab" data-lv="1" type="button">Хелпер</button>
+                <button class="os-tab" data-lv="2" type="button">Администратор</button>
+                <button class="os-tab" data-lv="3" type="button">Создатель</button>
               </div>
               <button class="btn btn-sm btn-primary" id="adm-set" type="button">Применить уровень</button>
               <span class="error-msg" id="adm-set-status" style="display:block;margin-top:10px"></span>
@@ -132,19 +133,6 @@
           <p class="text-muted">Все тикеты игроков. Ответ пишется от имени «Администрация».</p>
           <div class="glass cab-card">
             <div id="tickets-app"></div>
-          </div>
-        </div>
-
-        <!-- ============ ТОВАРЫ ============ -->
-        <div class="cab-panel" id="panel-products">
-          <h3>Товары магазина</h3>
-          <p class="text-muted">Привилегии (категория priv) и предметы (items) для shop.html.</p>
-          <div class="glass cab-card">
-            <div class="adm-toolbar">
-              <span class="text-muted" style="font-size:13px" id="products-count"></span>
-              <button class="btn btn-sm btn-primary" data-new="products" type="button">+ Добавить товар</button>
-            </div>
-            <div id="products-list"></div>
           </div>
         </div>
 
@@ -229,7 +217,7 @@
       const myLevel = (DB && DB.configured && DB.adminLevel)
         ? await DB.adminLevel(user.id, user.name)
         : (Number(user.adminLevel) || 0);
-      const isCreator = myLevel >= 2;
+      const isCreator = myLevel >= 3;
       const isAdmin = myLevel >= 1;
 
       if (!isAdmin) {
@@ -241,7 +229,13 @@
       panel.style.display = '';
 
       // ---------- Вкладки ----------
+      // Минимальный уровень для каждой вкладки: 1 — хелпер (только обращения),
+      // 2 — администратор (всё, кроме уровней), 3 — создатель (всё).
+      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2 };
       const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
+      tabs.forEach(tab => {
+        if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
+      });
       tabs.forEach(t => t.addEventListener('click', () => {
         tabs.forEach(x => x.classList.toggle('active', x === t));
         panel.querySelectorAll('.cab-panel').forEach(p => {
@@ -250,10 +244,21 @@
         if (t.dataset.tab === 'tickets') renderTickets();
       }));
 
+      // Если активная вкладка недоступна — открываем первую доступную
+      if (tabs.filter(t => t.style.display !== 'none').every(t => !t.classList.contains('active'))) {
+        const first = tabs.find(t => t.style.display !== 'none');
+        if (first) {
+          tabs.forEach(x => x.classList.toggle('active', x === first));
+          panel.querySelectorAll('.cab-panel').forEach(p => {
+            p.classList.toggle('active', p.id === 'panel-' + first.dataset.tab);
+          });
+        }
+      }
+
       // ---------- Секция уровней — только для создателя ----------
       if (!isCreator) {
         document.getElementById('panel-level').innerHTML =
-          '<h3>Уровни админов</h3><p class="text-muted">Эту секцию видит только создатель (уровень 2).</p>';
+          '<h3>Уровни админов</h3><p class="text-muted">Эту секцию видит только создатель (уровень 3).</p>';
       }
 
       // ============================================================
@@ -262,12 +267,13 @@
       const TABLES = {
         servers: {
           label: 'Сервер',
-          columns: [['name', 'Название'], ['version', 'Версия'], ['online', 'Онлайн'], ['max_online', 'Макс.'], ['modsCount', 'Моды']],
+          columns: [['name', 'Название'], ['version', 'Версия'], ['online', 'Онлайн'], ['peak_online', 'Пик'], ['max_online', 'Макс.'], ['modsCount', 'Моды']],
           fields: [
             { key: 'name', label: 'Название', type: 'text', required: true },
             { key: 'version', label: 'Версия (например 1.12.2)', type: 'text' },
             { key: 'description', label: 'Описание', type: 'textarea' },
             { key: 'online', label: 'Онлайн', type: 'number' },
+            { key: 'peak_online', label: 'Пиковый онлайн', type: 'number' },
             { key: 'max_online', label: 'Макс. онлайн', type: 'number' },
             { key: 'mods', label: 'Моды (по одному в строке)', type: 'tags' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
@@ -283,19 +289,6 @@
             { key: 'banned_at', label: 'Дата бана (ISO, можно пусто)', type: 'text' },
             { key: 'expires_at', label: 'Дата окончания (ISO, можно пусто)', type: 'text' },
             { key: 'active', label: 'Активен', type: 'checkbox' },
-          ],
-        },
-        products: {
-          label: 'Товар',
-          columns: [['name', 'Название'], ['category', 'Категория'], ['rub', 'Рубли'], ['coins', 'Монеты'], ['sort', 'Порядок']],
-          fields: [
-            { key: 'name', label: 'Название', type: 'text', required: true },
-            { key: 'category', label: 'Категория', type: 'select', options: [['priv', 'Привилегия'], ['items', 'Предмет']] },
-            { key: 'rub', label: 'Цена в рублях (за 1 мес для привилегий)', type: 'number' },
-            { key: 'coins', label: 'Цена в монетах', type: 'number' },
-            { key: 'description', label: 'Описание (для предметов)', type: 'textarea' },
-            { key: 'features', label: 'Возможности привилегии (по одной в строке)', type: 'tags' },
-            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
           ],
         },
         team: {
@@ -343,7 +336,7 @@
       async function loadRows(table) {
         if (cloud) {
           const list = {
-            servers: DB.listServers, bans: DB.listBans, products: DB.listProducts,
+            servers: DB.listServers, bans: DB.listBans,
             team: DB.listTeam, rules: DB.listRules, prefixes: DB.listPrefixes,
           }[table];
           if (list) {
@@ -575,7 +568,7 @@
         });
       }
 
-      ['servers', 'bans', 'products', 'team', 'rules', 'prefixes'].forEach(t => renderTable(t));
+      ['servers', 'bans', 'team', 'rules', 'prefixes'].forEach(t => renderTable(t));
 
       // ============================================================
       // Тикеты (обращения)
@@ -722,7 +715,7 @@
         }
         foundTarget = res;
         document.getElementById('adm-found-name').textContent = res.name;
-        const lvName = { 0: 'Игрок', 1: 'Администратор', 2: 'Создатель' }[res.adminLevel] || 'Игрок';
+        const lvName = { 0: 'Игрок', 1: 'Хелпер', 2: 'Администратор', 3: 'Создатель' }[res.adminLevel] || 'Игрок';
         document.getElementById('adm-found-level').textContent = 'Текущий уровень: ' + lvName;
         document.getElementById('adm-found-avatar').textContent = (res.name[0] || '?').toUpperCase();
         document.querySelectorAll('#adm-level-btns .os-tab').forEach(b => {
@@ -747,7 +740,7 @@
         if (!res.ok) { status.textContent = 'Ошибка: ' + (res.error || 'неизвестна'); return; }
         status.textContent = 'Уровень обновлён: ' + foundTarget.name + ' → ' + level;
         foundTarget.adminLevel = level;
-        const lvName = { 0: 'Игрок', 1: 'Администратор', 2: 'Создатель' }[level] || 'Игрок';
+        const lvName = { 0: 'Игрок', 1: 'Хелпер', 2: 'Администратор', 3: 'Создатель' }[level] || 'Игрок';
         document.getElementById('adm-found-level').textContent = 'Текущий уровень: ' + lvName;
       });
 
