@@ -28,6 +28,7 @@ function _toPublic(u) {
     transactions: Array.isArray(u.transactions) ? u.transactions : [],
     privileges: Array.isArray(u.privileges) ? u.privileges : [],
     prefixes: Array.isArray(u.prefixes) ? u.prefixes : [],
+    activePrefix: u.activePrefix || '',
     avatar: u.avatar || null,
     banner: u.banner || null,
     description: u.description || '',

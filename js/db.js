@@ -57,6 +57,7 @@
       description: user.description || '',
       privacy: user.privacy || {},
       prefixes: Array.isArray(user.prefixes) ? user.prefixes : [],
+      active_prefix: user.activePrefix || '',
       two_fa: !!user.twoFA,
     };
   }
@@ -78,6 +79,7 @@
       refBy: row.ref_by || null,
       adminLevel: Number(row.admin_level) || 0,
       prefixes: Array.isArray(row.prefixes) ? row.prefixes : [],
+      activePrefix: row.active_prefix || '',
       avatar: row.avatar || null,
       skin: row.skin || null,
       cape: row.cape || null,
@@ -504,29 +506,25 @@
     },
 
     // Кэш цветов префиксов (ник → цвет) для шапки и профилей.
-    // В кэш попадает только префикс с приоритетом > 0 — он красит ник
-    // поверх цвета привилегии. Перестраивается после выдачи префиксов.
+    // Красит ник только НАДЕТЫЙ префикс (active_prefix) с приоритетом > 0 —
+    // он идёт поверх цвета привилегии. Перестраивается после выдачи/смены.
     async refreshPrefixColors() {
       let map = {};
       if (this.configured) {
         const [pr, pl] = await Promise.all([
           this.listPrefixes(),
-          client.from('profiles').select('name,prefixes'),
+          client.from('profiles').select('name,prefixes,active_prefix'),
         ]);
         const byName = {};
         (Array.isArray(pr) ? pr : []).forEach(p => {
           byName[String(p.name).toLowerCase()] = { color: p.color, priority: Number(p.priority) || 0 };
         });
         (pl.data || []).forEach(u => {
-          let best = null;
-          (Array.isArray(u.prefixes) ? u.prefixes : []).forEach(n => {
-            const pfx = byName[String(n).toLowerCase()];
-            if (pfx && pfx.priority > 0 && (!best || pfx.priority > best.priority)) best = pfx;
-          });
-          if (best) map[String(u.name).toLowerCase()] = best.color;
+          const worn = byName[String(u.active_prefix || '').toLowerCase()];
+          if (worn && worn.priority > 0) map[String(u.name).toLowerCase()] = worn.color;
         });
       } else {
-        // localStorage-режим: выданные префиксы лежат в mc:auth, сами префиксы — в mc:admin:prefixes
+        // localStorage-режим: выданные и надетые префиксы лежат в mc:auth
         let users = [];
         try { users = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[]}').users || []; } catch (e) {}
         let prefixes = [];
@@ -536,12 +534,8 @@
           byName[String(p.name).toLowerCase()] = { color: p.color, priority: Number(p.priority) || 0 };
         });
         (Array.isArray(users) ? users : []).forEach(u => {
-          let best = null;
-          (Array.isArray(u.prefixes) ? u.prefixes : []).forEach(n => {
-            const pfx = byName[String(n).toLowerCase()];
-            if (pfx && pfx.priority > 0 && (!best || pfx.priority > best.priority)) best = pfx;
-          });
-          if (best) map[String(u.name).toLowerCase()] = best.color;
+          const worn = byName[String(u.activePrefix || '').toLowerCase()];
+          if (worn && worn.priority > 0) map[String(u.name).toLowerCase()] = worn.color;
         });
       }
       try { localStorage.setItem('mc:prefix-colors', JSON.stringify(map)); } catch (e) {}

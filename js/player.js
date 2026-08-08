@@ -46,24 +46,44 @@
     return colored ? colored.color : null;
   }
 
-  // Чипы выданных префиксов под ником
+  // Чипы выданных префиксов под ником + надетый префикс после ника
   function renderPrefixes(p) {
     const host = $('#player-prefixes');
-    if (!host) return;
     const assigned = Array.isArray(p.prefixes) ? p.prefixes : [];
-    if (!assigned.length) { host.style.display = 'none'; return; }
+    const wornName = p.activePrefix || '';
+
     const fill = list => {
       const byName = {};
       (Array.isArray(list) ? list : []).forEach(x => { byName[String(x.name).toLowerCase()] = x; });
+
+      // Надетый префикс — бейдж сразу после ника
+      const worn = wornName ? byName[String(wornName).toLowerCase()] || { name: wornName } : null;
+      const nameEl = $('#player-name');
+      if (nameEl) {
+        nameEl.querySelectorAll('.pfx-worn').forEach(el => el.remove());
+        if (worn) {
+          const col = worn.color || null;
+          const style = col
+            ? `style="color:${MC.esc(col)};border-color:${MC.esc(col)};text-shadow:0 0 12px ${col}"`
+            : '';
+          nameEl.insertAdjacentHTML('beforeend', ` <span class="pfx-worn" ${style}>${MC.esc(worn.name)}</span>`);
+        }
+      }
+
+      if (!host) return;
+      if (!assigned.length) { host.style.display = 'none'; return; }
+      host.style.display = 'flex';
       host.innerHTML = assigned.map(n => {
         const x = byName[String(n).toLowerCase()] || {};
+        const isWorn = String(n).toLowerCase() === String(wornName).toLowerCase();
         const col = x.color || null;
         const style = col
           ? `style="color:${MC.esc(col)};border-color:${MC.esc(col)};text-shadow:0 0 10px ${col}"`
           : '';
-        return `<span class="pfx-chip" ${style}>${MC.esc(x.name || n)}</span>`;
+        return `<span class="pfx-chip${isWorn ? ' worn' : ''}" ${style}>${MC.esc(x.name || n)}${isWorn ? ' ✓' : ''}</span>`;
       }).join('');
     };
+
     if (window.DB && DB.configured && DB.listPrefixes) {
       DB.listPrefixes().then(fill).catch(() => fill([]));
     } else {

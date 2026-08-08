@@ -20,7 +20,7 @@
       <p>Красочный ник на сервере и в чате.</p>
     </div>
 
-    <!-- Префиксы. Данные из Supabase (таблица prefixes) -->
+    <!-- Префиксы. Данные из Supabase (таблица prefixes + profiles.prefixes) -->
     <div class="pfx-wrap anim-fade-up delay-1">
       <div class="seg pfx-tabs">
         <button class="os-tab active" data-tab="open" type="button">Доступные</button>
@@ -31,8 +31,9 @@
       <div id="pfx-closed" style="display:none"></div>
 
       <div class="pfx-note">
-        <strong>Как это работает.</strong> Выбери префикс — и он появится рядом с твоим ником в чате
-        и на сервере. Один активный префикс за раз. Менять можно в любой момент.
+        <strong>Как это работает.</strong> «Доступные» — префиксы, которые тебе выдала администрация:
+        выбираешь любой и нажимаешь «Надеть». «Закрытые» — префиксы, которых у тебя пока нет,
+        но они существуют. Один надетый префикс за раз, менять можно в любой момент.
       </div>
     </div>
   </main>
@@ -53,21 +54,55 @@
         try { prefixes = await DB.listPrefixes() || []; } catch (e) { prefixes = []; }
       }
 
-      function renderCards(list, host, emptyText) {
-        if (!list.length) {
-          host.innerHTML = `<div class="pfx-empty"><b>${MC.esc(emptyText)}</b></div>`;
-          return;
-        }
-        host.innerHTML = `<div class="pfx-grid">` + list.map(p => `
+      const user = (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
+      const mine = new Set(Array.isArray(user && user.prefixes) ? user.prefixes : []);
+      const worn = (user && user.activePrefix) || '';
+
+      function pfxCard(p, extra) {
+        return `
           <div class="pfx-card glass">
             <span class="pfx-name"${p.color ? ` style="color:${MC.esc(p.color)};text-shadow:0 0 12px ${MC.esc(p.color)}"` : ''}>${MC.esc(p.name)}</span>
             <span class="pfx-priority">${Number(p.priority) > 0 ? 'приоритет ' + p.priority : 'без приоритета'}</span>
+            ${extra || ''}
           </div>
-        `).join('') + `</div>`;
+        `;
       }
 
-      renderCards(prefixes.filter(p => p.public), openHost, 'Доступных префиксов пока нет');
-      renderCards(prefixes.filter(p => !p.public), closedHost, 'Закрытых префиксов пока нет');
+      function wearBtn(p) {
+        if (worn === p.name) {
+          return `<span class="pfx-worn-mark">&#10003; Надето</span>`;
+        }
+        return `<button class="btn btn-sm pfx-wear" data-name="${MC.esc(p.name)}" type="button">Надеть</button>`;
+      }
+
+      function render() {
+        const mineList = prefixes.filter(p => mine.has(p.name));
+        const closedList = prefixes.filter(p => !mine.has(p.name));
+
+        if (mineList.length) {
+          openHost.innerHTML = `<div class="pfx-grid">` + mineList.map(p => pfxCard(p, wearBtn(p))).join('') + `</div>`;
+        } else {
+          openHost.innerHTML = `<div class="pfx-empty"><b>${user ? 'Тебе пока не выдали префиксы' : 'Войди, чтобы увидеть свои префиксы'}</b></div>`;
+        }
+
+        if (closedList.length) {
+          closedHost.innerHTML = `<div class="pfx-grid">` + closedList.map(p => pfxCard(p)).join('') + `</div>`;
+        } else {
+          closedHost.innerHTML = `<div class="pfx-empty"><b>У тебя все префиксы проекта</b></div>`;
+        }
+
+        openHost.querySelectorAll('.pfx-wear').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (!user) return;
+            Auth.updateCurrentUser(u => { u.activePrefix = btn.dataset.name; });
+            if (window.DB && DB.refreshPrefixColors) DB.refreshPrefixColors().catch(() => {});
+            if (window.buildHeader) buildHeader();
+            render();
+          });
+        });
+      }
+
+      render();
 
       $$('.pfx-tabs .os-tab').forEach(btn => {
         btn.addEventListener('click', () => {

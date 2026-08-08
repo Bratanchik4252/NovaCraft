@@ -29,6 +29,7 @@ create table if not exists public.profiles (
   description  text not null default '',
   privacy      jsonb not null default '{"showStats":true,"showTime":true,"showPrivilege":true,"showDescription":true,"showBanner":true}',
   prefixes     jsonb not null default '[]', -- префиксы, выданные админом игроку (массив названий)
+  active_prefix text not null default '',   -- какой префикс сейчас надет (из списка prefixes)
   two_fa       boolean not null default false,
   created_at   timestamptz not null default now()
 );
@@ -36,6 +37,7 @@ create table if not exists public.profiles (
 -- Для уже существующей таблицы profiles добавляем колонку уровня админа (безопасно повторять)
 alter table public.profiles add column if not exists admin_level integer not null default 0;
 alter table public.profiles add column if not exists prefixes jsonb not null default '[]';
+alter table public.profiles add column if not exists active_prefix text not null default '';
 
 -- ---------- Логи с игрового сервера (мод будет писать сюда) ----------
 create table if not exists public.logs (
@@ -136,12 +138,12 @@ create table if not exists public.prefixes (
   name      text not null,
   color     text,                        -- hex-цвет префикса
   priority  integer not null default 0,  -- чем больше, тем главнее (0 — ник не красит)
-  public    boolean not null default true,
   sort      integer not null default 0
 );
 
 -- Миграция (безопасно повторять): приоритет у старых префиксов + переносим
--- старые выдачи (prefixes.owner) в profiles.prefixes и удаляем owner.
+-- старые выдачи (prefixes.owner) в profiles.prefixes, удаляем owner и public
+-- («доступные/закрытые» теперь считаются персонально: выдан префикс или нет).
 alter table public.prefixes add column if not exists priority integer not null default 0;
 
 do $$
@@ -163,6 +165,8 @@ begin
     alter table public.prefixes drop column owner;
   end if;
 end $$;
+
+alter table public.prefixes drop column if exists "public";
 
 -- ---------- Правила (аккордеоны на rules.html) ----------
 create table if not exists public.rules (
