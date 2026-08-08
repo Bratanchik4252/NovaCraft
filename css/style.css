@@ -2353,7 +2353,20 @@ main {
   text-align: center;
 }
 .pfx-name { font-size: 18px; font-weight: 800; }
-.pfx-owner { font-size: 13px; color: var(--muted); }
+.pfx-priority { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.pfx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
 
 /* ==========================================================================
    40. Обращения: тикеты (список слева + чат справа)

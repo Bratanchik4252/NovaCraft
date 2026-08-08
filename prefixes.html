@@ -61,7 +61,7 @@
         host.innerHTML = `<div class="pfx-grid">` + list.map(p => `
           <div class="pfx-card glass">
             <span class="pfx-name"${p.color ? ` style="color:${MC.esc(p.color)};text-shadow:0 0 12px ${MC.esc(p.color)}"` : ''}>${MC.esc(p.name)}</span>
-            <span class="pfx-owner">${MC.esc(p.owner || '')}</span>
+            <span class="pfx-priority">${Number(p.priority) > 0 ? 'приоритет ' + p.priority : 'без приоритета'}</span>
           </div>
         `).join('') + `</div>`;
       }

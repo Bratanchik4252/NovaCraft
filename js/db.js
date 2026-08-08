@@ -56,6 +56,7 @@
       banner: user.banner || null,
       description: user.description || '',
       privacy: user.privacy || {},
+      prefixes: Array.isArray(user.prefixes) ? user.prefixes : [],
       two_fa: !!user.twoFA,
     };
   }
@@ -76,6 +77,7 @@
       referrals: Array.isArray(row.referrals) ? row.referrals : [],
       refBy: row.ref_by || null,
       adminLevel: Number(row.admin_level) || 0,
+      prefixes: Array.isArray(row.prefixes) ? row.prefixes : [],
       avatar: row.avatar || null,
       skin: row.skin || null,
       cape: row.cape || null,
@@ -501,6 +503,51 @@
       return (error || !data) ? [] : data;
     },
 
+    // Кэш цветов префиксов (ник → цвет) для шапки и профилей.
+    // В кэш попадает только префикс с приоритетом > 0 — он красит ник
+    // поверх цвета привилегии. Перестраивается после выдачи префиксов.
+    async refreshPrefixColors() {
+      let map = {};
+      if (this.configured) {
+        const [pr, pl] = await Promise.all([
+          this.listPrefixes(),
+          client.from('profiles').select('name,prefixes'),
+        ]);
+        const byName = {};
+        (Array.isArray(pr) ? pr : []).forEach(p => {
+          byName[String(p.name).toLowerCase()] = { color: p.color, priority: Number(p.priority) || 0 };
+        });
+        (pl.data || []).forEach(u => {
+          let best = null;
+          (Array.isArray(u.prefixes) ? u.prefixes : []).forEach(n => {
+            const pfx = byName[String(n).toLowerCase()];
+            if (pfx && pfx.priority > 0 && (!best || pfx.priority > best.priority)) best = pfx;
+          });
+          if (best) map[String(u.name).toLowerCase()] = best.color;
+        });
+      } else {
+        // localStorage-режим: выданные префиксы лежат в mc:auth, сами префиксы — в mc:admin:prefixes
+        let users = [];
+        try { users = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[]}').users || []; } catch (e) {}
+        let prefixes = [];
+        try { prefixes = JSON.parse(localStorage.getItem('mc:admin:prefixes')) || []; } catch (e) {}
+        const byName = {};
+        (Array.isArray(prefixes) ? prefixes : []).forEach(p => {
+          byName[String(p.name).toLowerCase()] = { color: p.color, priority: Number(p.priority) || 0 };
+        });
+        (Array.isArray(users) ? users : []).forEach(u => {
+          let best = null;
+          (Array.isArray(u.prefixes) ? u.prefixes : []).forEach(n => {
+            const pfx = byName[String(n).toLowerCase()];
+            if (pfx && pfx.priority > 0 && (!best || pfx.priority > best.priority)) best = pfx;
+          });
+          if (best) map[String(u.name).toLowerCase()] = best.color;
+        });
+      }
+      try { localStorage.setItem('mc:prefix-colors', JSON.stringify(map)); } catch (e) {}
+      return map;
+    },
+
     async listRules() {
       if (!this.configured) return null;
       const { data, error } = await client.from('rules').select('*').order('sort');
@@ -543,20 +590,47 @@
       return found ? found.adminLevel : 0;
     },
 
-    // Найти профиль по нику или uuid — для выдачи админки.
-    // Возвращает { id, name, admin_level } или null.
+    // Найти профиль по нику или uuid — для выдачи админки и префиксов.
+    // Возвращает { id, name, admin_level, prefixes } или null.
     async adminFindUser(query) {
       if (!this.configured) return null;
       const q = String(query || '').trim();
       if (!q) return null;
       let result = null;
-      const byId = await client.from('profiles').select('id,name,admin_level').eq('id', q).maybeSingle();
+      const byId = await client.from('profiles').select('id,name,admin_level,prefixes').eq('id', q).maybeSingle();
       if (byId.data) result = byId.data;
       if (!result) {
-        const byName = await client.from('profiles').select('id,name,admin_level').ilike('name', q).maybeSingle();
+        const byName = await client.from('profiles').select('id,name,admin_level,prefixes').ilike('name', q).maybeSingle();
         if (byName.data) result = byName.data;
       }
-      return result ? { id: result.id, name: result.name, adminLevel: Number(result.admin_level) || 0 } : null;
+      return result
+        ? { id: result.id, name: result.name, adminLevel: Number(result.admin_level) || 0, prefixes: Array.isArray(result.prefixes) ? result.prefixes : [] }
+        : null;
+    },
+
+    // Выдать/снять префикс игроку. В облаке — через RPC grant_prefix
+    // (только admin_level >= 2), в localStorage-режиме — напрямую в mc:auth.
+    async adminGrantPrefix(targetId, prefixName, doAdd) {
+      if (!this.configured) {
+        let data = null;
+        try { data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}'); } catch (e) {}
+        const u = data && data.users ? data.users.find(x => String(x.id) === String(targetId)) : null;
+        if (!u) return { ok: false, error: 'Аккаунт не найден' };
+        if (!Array.isArray(u.prefixes)) u.prefixes = [];
+        if (doAdd) {
+          if (!u.prefixes.includes(prefixName)) u.prefixes.push(prefixName);
+        } else {
+          u.prefixes = u.prefixes.filter(n => n !== prefixName);
+        }
+        try { localStorage.setItem('mc:auth', JSON.stringify(data)); } catch (e) {}
+        return { ok: true, prefixes: u.prefixes };
+      }
+      const { data, error } = await client.rpc('grant_prefix', {
+        target_id: targetId,
+        prefix_name: prefixName,
+        do_add: !!doAdd,
+      });
+      return error ? { ok: false, error: error.message } : { ok: data.ok !== false, error: data.error, prefixes: data.prefixes };
     },
 
     // Выдать/снять админку: level = 0/1/2/3. Возвращает { ok, error }.

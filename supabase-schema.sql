@@ -28,12 +28,14 @@ create table if not exists public.profiles (
   banner       text,
   description  text not null default '',
   privacy      jsonb not null default '{"showStats":true,"showTime":true,"showPrivilege":true,"showDescription":true,"showBanner":true}',
+  prefixes     jsonb not null default '[]', -- префиксы, выданные админом игроку (массив названий)
   two_fa       boolean not null default false,
   created_at   timestamptz not null default now()
 );
 
 -- Для уже существующей таблицы profiles добавляем колонку уровня админа (безопасно повторять)
 alter table public.profiles add column if not exists admin_level integer not null default 0;
+alter table public.profiles add column if not exists prefixes jsonb not null default '[]';
 
 -- ---------- Логи с игрового сервера (мод будет писать сюда) ----------
 create table if not exists public.logs (
@@ -126,14 +128,41 @@ create table if not exists public.team (
 );
 
 -- ---------- Префиксы ----------
+-- Префикс — это «бейдж», который админ выдаёт игроку вручную (по нику или ID,
+-- таблица profiles.prefixes). Создавать префиксы можно без владельца.
+-- Цвет: префикс красит ник, если его приоритет выше цвета привилегии (приоритет > 0).
 create table if not exists public.prefixes (
   id        bigint generated always as identity primary key,
   name      text not null,
-  color     text,                        -- hex-цвет (красит ник владельца)
-  owner     text,                        -- ник игрока, которому выдан префикс (необязательно)
+  color     text,                        -- hex-цвет префикса
+  priority  integer not null default 0,  -- чем больше, тем главнее (0 — ник не красит)
   public    boolean not null default true,
   sort      integer not null default 0
 );
+
+-- Миграция (безопасно повторять): приоритет у старых префиксов + переносим
+-- старые выдачи (prefixes.owner) в profiles.prefixes и удаляем owner.
+alter table public.prefixes add column if not exists priority integer not null default 0;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'prefixes' and column_name = 'owner'
+  ) then
+    update public.profiles p
+    set prefixes = coalesce(p.prefixes, '[]'::jsonb) || sub.names
+    from (
+      select lower(owner) as nick, jsonb_agg(name) as names
+      from public.prefixes
+      where owner is not null and owner <> ''
+      group by lower(owner)
+    ) sub
+    where lower(p.name) = sub.nick;
+
+    alter table public.prefixes drop column owner;
+  end if;
+end $$;
 
 -- ---------- Правила (аккордеоны на rules.html) ----------
 create table if not exists public.rules (
@@ -182,6 +211,44 @@ as $$
     where id = auth.uid() and admin_level >= 3
   );
 $$;
+
+-- Выдать/снять префикс игроку (админка, «Префиксы» → «Выдать префикс игроку»).
+-- Вызывать может только администратор/создатель (admin_level >= 2).
+-- Работает через security definer, чтобы не менять RLS-политику profiles.
+create or replace function public.grant_prefix(target_id uuid, prefix_name text, do_add boolean)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  cur jsonb;
+begin
+  if not exists (
+    select 1 from public.profiles
+    where id = auth.uid() and admin_level >= 2
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'Нет прав');
+  end if;
+
+  select prefixes into cur from public.profiles where id = target_id;
+  if cur is null then cur := '[]'::jsonb; end if;
+
+  if do_add then
+    if not exists (select 1 from jsonb_array_elements_text(cur) x where x = prefix_name) then
+      cur := cur || jsonb_build_array(prefix_name);
+    end if;
+  else
+    select coalesce(jsonb_agg(x), '[]'::jsonb) into cur
+    from jsonb_array_elements_text(cur) x
+    where x <> prefix_name;
+  end if;
+
+  update public.profiles set prefixes = cur where id = target_id;
+  return jsonb_build_object('ok', true, 'prefixes', cur);
+end;
+$$;
+
+grant execute on function public.grant_prefix(uuid, text, boolean) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.logs    enable row level security;

@@ -166,15 +166,47 @@
         <div class="cab-panel" id="panel-prefixes">
           <h3>Префиксы</h3>
           <p class="text-muted">
-            Доступные и закрытые префиксы. Если задан <b>владелец</b> и <b>цвет</b> — ник владельца красится
-            в шапке и в профиле игрока.
+            Префикс — это бейдж, который админ выдаёт игроку вручную. Создавать можно без владельца.
+            Префикс с <b>приоритетом выше привилегии</b> красит ник своим цветом.
           </p>
           <div class="glass cab-card">
             <div class="adm-toolbar">
               <span class="text-muted" style="font-size:13px" id="prefixes-count"></span>
-              <button class="btn btn-sm btn-primary" data-new="prefixes" type="button">+ Добавить префикс</button>
+              <button class="btn btn-sm btn-primary" data-new="prefixes" type="button">+ Создать префикс</button>
             </div>
             <div id="prefixes-list"></div>
+          </div>
+
+          <div class="glass cab-card">
+            <h4>Выдать префикс игроку</h4>
+            <p class="text-muted" style="font-size:13px;margin-bottom:14px">
+              Введи ник или UUID аккаунта, зарегистрированного на сайте.
+            </p>
+            <div class="field">
+              <label for="pfx-query">Ник или UUID</label>
+              <input id="pfx-query" placeholder="Например: BuShiZm">
+            </div>
+            <button class="btn btn-sm" id="pfx-find" type="button">Найти</button>
+            <span class="error-msg" id="pfx-find-status" style="display:block;margin-top:10px"></span>
+
+            <div id="pfx-found" style="display:none;margin-top:14px">
+              <div class="adm-found-user">
+                <span id="pfx-found-avatar" class="account-avatar account-letter"></span>
+                <div>
+                  <div id="pfx-found-name" style="font-weight:800"></div>
+                  <div class="text-muted" style="font-size:12px" id="pfx-found-prefixes"></div>
+                </div>
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label for="pfx-select">Префикс</label>
+                <select id="pfx-select"></select>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn btn-sm btn-primary" id="pfx-grant" type="button">Выдать</button>
+                <button class="btn btn-sm" id="pfx-revoke" type="button">Снять</button>
+              </div>
+              <span class="error-msg" id="pfx-set-status" style="display:block;margin-top:10px"></span>
+            </div>
           </div>
         </div>
 
@@ -312,12 +344,12 @@
         },
         prefixes: {
           label: 'Префикс',
-          columns: [['colorCell', 'Цвет'], ['name', 'Название'], ['owner', 'Владелец'], ['public', 'Доступен']],
+          columns: [['colorCell', 'Цвет'], ['name', 'Название'], ['priority', 'Приоритет'], ['public', 'Доступен']],
           fields: [
             { key: 'name', label: 'Название префикса', type: 'text', required: true },
-            { key: 'color', label: 'Цвет (красит ник владельца)', type: 'color' },
-            { key: 'owner', label: 'Владелец (ник игрока, необязательно)', type: 'text' },
-            { key: 'public', label: 'Доступен всем', type: 'checkbox' },
+            { key: 'color', label: 'Цвет префикса (красит ник при приоритете > 0)', type: 'color' },
+            { key: 'priority', label: 'Приоритет (0 — ник не красит, чем больше — тем главнее)', type: 'number' },
+            { key: 'public', label: 'Показывать в «Доступных» на странице префиксов', type: 'checkbox' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
           ],
         },
@@ -680,20 +712,70 @@
       }
 
       // ============================================================
-      // Цвет префикса по владельцу (для шапки/профилей)
+      // Цвет префикса по игроку (для шапки/профилей)
       // ============================================================
       window.refreshPrefixColors = async function () {
-        if (!cloud) return;
-        try {
-          const rows = await DB.listPrefixes();
-          const map = {};
-          (Array.isArray(rows) ? rows : []).forEach(p => {
-            if (p.owner && p.color) map[String(p.owner).toLowerCase()] = p.color;
-          });
-          localStorage.setItem('mc:prefix-colors', JSON.stringify(map));
-        } catch (e) {}
+        if (window.DB && DB.refreshPrefixColors) {
+          await DB.refreshPrefixColors();
+        }
       };
       refreshPrefixColors();
+
+      // ============================================================
+      // Выдача префиксов игрокам (по нику или UUID)
+      // ============================================================
+      let foundPfxTarget = null;
+      let pfxAll = [];
+
+      loadRows('prefixes').then(rows => { pfxAll = rows || []; }).catch(() => {});
+
+      document.getElementById('pfx-find')?.addEventListener('click', async () => {
+        const q = document.getElementById('pfx-query').value.trim();
+        const status = document.getElementById('pfx-find-status');
+        status.textContent = '';
+        if (!q) { status.textContent = 'Введите ник или UUID'; return; }
+        if (!DB.configured || !DB.adminFindUser) { status.textContent = 'Supabase не настроен'; return; }
+        const res = await DB.adminFindUser(q);
+        if (!res) {
+          status.textContent = 'Аккаунт не найден. У игрока должен быть аккаунт на сайте.';
+          document.getElementById('pfx-found').style.display = 'none';
+          foundPfxTarget = null;
+          return;
+        }
+        foundPfxTarget = res;
+        document.getElementById('pfx-found-name').textContent = res.name;
+        document.getElementById('pfx-found-avatar').textContent = (res.name[0] || '?').toUpperCase();
+        renderPfxFound();
+        document.getElementById('pfx-found').style.display = '';
+      });
+
+      function renderPfxFound() {
+        const sel = document.getElementById('pfx-select');
+        const own = new Set(foundPfxTarget && Array.isArray(foundPfxTarget.prefixes) ? foundPfxTarget.prefixes : []);
+        document.getElementById('pfx-found-prefixes').textContent =
+          own.size ? 'Префиксы: ' + [...own].join(', ') : 'Префиксов нет';
+        sel.innerHTML = pfxAll.length
+          ? pfxAll.map(p => `<option value="${MC.esc(p.name)}">${MC.esc(p.name)}${p.color ? ' · ' + MC.esc(p.color) : ''}</option>`).join('')
+          : '<option value="">— сначала создайте префикс —</option>';
+      }
+
+      async function pfxSet(add) {
+        const status = document.getElementById('pfx-set-status');
+        status.textContent = '';
+        if (!foundPfxTarget) { status.textContent = 'Сначала найдите аккаунт'; return; }
+        const sel = document.getElementById('pfx-select');
+        if (!sel.value) { status.textContent = 'Сначала создайте префикс'; return; }
+        const res = await DB.adminGrantPrefix(foundPfxTarget.id, sel.value, add);
+        if (!res.ok) { status.textContent = 'Ошибка: ' + (res.error || 'неизвестна'); return; }
+        foundPfxTarget.prefixes = res.prefixes || foundPfxTarget.prefixes || [];
+        status.style.color = 'var(--success)';
+        status.textContent = (add ? 'Выдан' : 'Снят') + ' префикс «' + sel.value + '» → ' + foundPfxTarget.name;
+        renderPfxFound();
+        refreshPrefixColors();
+      }
+
+      document.getElementById('pfx-grant')?.addEventListener('click', () => pfxSet(true));
+      document.getElementById('pfx-revoke')?.addEventListener('click', () => pfxSet(false));
 
       // ============================================================
       // Уровни админов (секция для создателя)

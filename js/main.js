@@ -89,8 +89,10 @@ function privilegeColorOf(u) {
   return colored ? colored.color : null;
 }
 
-// Цвет префикса по владельцу (таблица prefixes, поле owner) — из кэша,
-// который заполняет админ-панель. Красит ник, если привилегия цвет не дала.
+// Цвет префикса игрока (выданного админом). Из кэша mc:prefix-colors,
+// который перестраивает DB.refreshPrefixColors() и админ-панель.
+// В кэш попадают только префиксы с приоритетом > 0 — они красят ник
+// поверх цвета привилегии.
 function prefixColorOf(u) {
   if (!u || !u.name) return null;
   try {
@@ -101,9 +103,9 @@ function prefixColorOf(u) {
   }
 }
 
-// Итоговый цвет ника: привилегия → префикс → null
+// Итоговый цвет ника: префикс (приоритет > 0) → привилегия → null
 function nickColorOf(u) {
-  return privilegeColorOf(u) || prefixColorOf(u) || null;
+  return prefixColorOf(u) || privilegeColorOf(u) || null;
 }
 
 // Топовая привилегия для микро-меню (первая, кроме стандартной «Игрок»).
@@ -687,16 +689,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Кэш цветов префиксов (ник → цвет) для шапки и профилей игроков.
-  // Заполняется из таблицы prefixes (поле owner), админка тоже обновляет его.
-  if (window.DB && DB.configured && DB.listPrefixes) {
-    DB.listPrefixes().then(rows => {
-      if (!Array.isArray(rows)) return;
-      const map = {};
-      rows.forEach(p => {
-        if (p.owner && p.color) map[String(p.owner).toLowerCase()] = p.color;
-      });
-      try { localStorage.setItem('mc:prefix-colors', JSON.stringify(map)); } catch (e) {}
+  // Кэш цветов префиксов (ник → цвет): в кэш попадает префикс с приоритетом > 0,
+  // он красит ник поверх цвета привилегии. Перестраивается после выдачи префиксов.
+  if (window.DB && DB.refreshPrefixColors) {
+    DB.refreshPrefixColors().then(() => {
       buildHeader();
     }).catch(() => {});
   }

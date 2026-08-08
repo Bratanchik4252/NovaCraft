@@ -27,6 +27,7 @@ function _toPublic(u) {
     timeHours: (u.stats && u.stats.timeHours) || 0,
     transactions: Array.isArray(u.transactions) ? u.transactions : [],
     privileges: Array.isArray(u.privileges) ? u.privileges : [],
+    prefixes: Array.isArray(u.prefixes) ? u.prefixes : [],
     avatar: u.avatar || null,
     banner: u.banner || null,
     description: u.description || '',

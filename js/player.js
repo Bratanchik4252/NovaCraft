@@ -22,6 +22,7 @@
       }
 
       renderHeader(player);
+      renderPrefixes(player);
       renderPrivilege(player);
       renderStats(player);
       initActions(player);
@@ -31,17 +32,42 @@
   }
 
   // ---------- Шапка профиля ----------
-  // Привилегия с цветом красит имя игрока (например, красный «Создатель»).
-  // Если цвета нет — пробуем цвет префикса владельца (таблица prefixes).
+  // Префикс с приоритетом > 0 красит имя игрока поверх цвета привилегии
+  // (в кэше mc:prefix-colors лежат только такие префиксы).
+  // Если префикса нет — цвет привилегии (например, красный «Создатель»).
   function privilegeColor(p) {
-    const privs = Array.isArray(p.privileges) ? p.privileges : [];
-    const colored = privs.find(pr => pr.color);
-    if (colored) return colored.color;
     try {
       const map = JSON.parse(localStorage.getItem('mc:prefix-colors') || '{}');
-      return map[String(p.name).toLowerCase()] || null;
-    } catch (e) {
-      return null;
+      const c = map[String(p.name).toLowerCase()];
+      if (c) return c;
+    } catch (e) {}
+    const privs = Array.isArray(p.privileges) ? p.privileges : [];
+    const colored = privs.find(pr => pr.color);
+    return colored ? colored.color : null;
+  }
+
+  // Чипы выданных префиксов под ником
+  function renderPrefixes(p) {
+    const host = $('#player-prefixes');
+    if (!host) return;
+    const assigned = Array.isArray(p.prefixes) ? p.prefixes : [];
+    if (!assigned.length) { host.style.display = 'none'; return; }
+    const fill = list => {
+      const byName = {};
+      (Array.isArray(list) ? list : []).forEach(x => { byName[String(x.name).toLowerCase()] = x; });
+      host.innerHTML = assigned.map(n => {
+        const x = byName[String(n).toLowerCase()] || {};
+        const col = x.color || null;
+        const style = col
+          ? `style="color:${MC.esc(col)};border-color:${MC.esc(col)};text-shadow:0 0 10px ${col}"`
+          : '';
+        return `<span class="pfx-chip" ${style}>${MC.esc(x.name || n)}</span>`;
+      }).join('');
+    };
+    if (window.DB && DB.configured && DB.listPrefixes) {
+      DB.listPrefixes().then(fill).catch(() => fill([]));
+    } else {
+      fill([]);
     }
   }
 
