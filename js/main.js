@@ -270,8 +270,7 @@ function buildHeader() {
           </svg>
         </button>
         <div class="dropdown" id="dropdown">
-          <a href="rules.html">Правила проекта</a>
-          <a href="rules.html#servers">Правила серверов</a>
+          <a href="rules.html">Правила</a>
           <a href="prefixes.html">Префиксы</a>
           <a href="bans.html">Банлист</a>
           <a href="appeals.html">Обращения</a>
