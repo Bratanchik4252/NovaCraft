@@ -780,27 +780,16 @@
       $('#set-pass-new2').value = '';
     });
 
-    // Тема
-    const themeName = $('#set-theme-name');
-    const updateThemeName = () => {
-      const t = document.documentElement.getAttribute('data-theme');
-      themeName.textContent = t === 'white' ? 'белая' : 'тёмная';
-    };
-    updateThemeName();
-    $('#set-theme').addEventListener('click', () => {
-      if (window.MC) MC.toggleTheme();
-      updateThemeName();
-    });
-
     // Публичный профиль
     const desc = $('#set-desc');
     desc.value = user.description || '';
-    const privacy = user.privacy || {};
-    $('#pv-stats').checked = privacy.showStats !== false;
-    $('#pv-time').checked = privacy.showTime !== false;
-    $('#pv-priv').checked = privacy.showPrivilege !== false;
-    $('#pv-desc').checked = privacy.showDescription !== false;
-    $('#pv-banner').checked = privacy.showBanner !== false;
+    let saveTimer = null;
+    desc.addEventListener('input', () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        Auth.updateCurrentUser(u => { u.description = desc.value.trim().slice(0, 300); });
+      }, 600);
+    });
 
     makeFileDrop($('#banner-drop'), $('#set-banner'), file => {
       if (file.size > MAX_MEDIA) {
@@ -813,22 +802,6 @@
         $('#banner-status').textContent = 'Банер сохранён';
       };
       reader.readAsDataURL(file);
-    });
-
-    $('#set-profile-save').addEventListener('click', () => {
-      const status = $('#set-profile-status');
-      Auth.updateCurrentUser(u => {
-        u.description = desc.value.trim().slice(0, 300);
-        u.privacy = {
-          showStats: $('#pv-stats').checked,
-          showTime: $('#pv-time').checked,
-          showPrivilege: $('#pv-priv').checked,
-          showDescription: $('#pv-desc').checked,
-          showBanner: $('#pv-banner').checked,
-        };
-      });
-      status.style.color = 'var(--success)';
-      status.textContent = 'Профиль сохранён';
     });
   }
 

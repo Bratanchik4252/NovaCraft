@@ -47,7 +47,7 @@
 
   function renderHeader(p) {
     const banner = $('#player-banner');
-    if (p.banner && p.privacy.showBanner !== false) {
+    if (p.banner) {
       banner.innerHTML = `<img src="${MC.esc(p.banner)}" alt="">`;
     }
 
@@ -76,7 +76,7 @@
       nameEl.style.color = color;
       nameEl.style.textShadow = `0 0 18px ${color}`;
     }
-    $('#player-desc').textContent = p.privacy.showDescription === false ? '' : (p.description || '');
+    $('#player-desc').textContent = (p.description || '');
 
     const status = $('#player-status');
     if (p.online) {
@@ -133,10 +133,6 @@
 
     // Если привилегий нет — показываем стандартную «Игрок» (не «Мирный»).
     const visible = privs.filter(pr => String(pr.name || '').toLowerCase() !== 'игрок');
-    if (p.privacy.showPrivilege === false) {
-      block.style.display = 'none';
-      return;
-    }
     if (!visible.length) {
       host.innerHTML = `
         <div class="priv-card">
@@ -203,11 +199,6 @@
   function renderStats(p) {
     const host = $('#player-stats');
     if (!host) return;
-    const card = host.closest('.cab-card');
-    if (p.privacy.showStats === false) {
-      if (card) card.style.display = 'none';
-      return;
-    }
     let earned = 0;
     let spent = 0;
     (Array.isArray(p.transactions) ? p.transactions : []).forEach(t => {
