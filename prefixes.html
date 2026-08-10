@@ -50,6 +50,17 @@
       const openHost = document.getElementById('pfx-open');
       const closedHost = document.getElementById('pfx-closed');
 
+      // Вкладки вешаем ПЕРВЫМИ — переключение работает всегда,
+      // даже если данные ещё не загрузились или упали.
+      document.querySelectorAll('.pfx-tabs .os-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.pfx-tabs .os-tab').forEach(b => b.classList.toggle('active', b === btn));
+          const isOpen = btn.dataset.tab === 'open';
+          openHost.style.display = isOpen ? '' : 'none';
+          closedHost.style.display = isOpen ? 'none' : '';
+        });
+      });
+
       let prefixes = [];
       if (window.DB && DB.configured && DB.listPrefixes) {
         try { prefixes = await DB.listPrefixes() || []; } catch (e) { prefixes = []; }
@@ -57,7 +68,10 @@
 
       // Текущий пользователь. В облаке берём СВЕЖИЙ профиль из базы, а не локальный
       // кэш — иначе выданный только что префикс не появится в «Доступных».
-      let user = (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
+      let user = null;
+      try {
+        if (window.Auth && Auth.getCurrentUser) user = Auth.getCurrentUser();
+      } catch (e) {}
       if (user && window.DB && DB.configured && DB.findPlayerByName) {
         try {
           const fresh = await DB.findPlayerByName(user.name);
@@ -68,12 +82,16 @@
         DB.refreshPrefixColors().catch(() => {});
       }
       const mine = new Set(Array.isArray(user && user.prefixes) ? user.prefixes : []);
-      const worn = (user && user.activePrefix) || '';
+      let worn = (user && user.activePrefix) || '';
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
 
       function pfxCard(p, extra) {
         return `
           <div class="pfx-card glass">
-            <span class="pfx-name"${p.color ? ` style="color:${MC.esc(p.color)};text-shadow:0 0 12px ${MC.esc(p.color)}"` : ''}>${MC.esc(p.name)}</span>
+            <span class="pfx-name"${p.color ? ` style="color:${esc(p.color)};text-shadow:0 0 12px ${esc(p.color)}"` : ''}>${esc(p.name)}</span>
             <span class="pfx-priority">${Number(p.priority) > 0 ? 'приоритет ' + p.priority : 'без приоритета'}</span>
             ${extra || ''}
           </div>
@@ -84,7 +102,7 @@
         if (worn === p.name) {
           return `<span class="pfx-worn-mark">&#10003; Надето</span>`;
         }
-        return `<button class="btn btn-sm pfx-wear" data-name="${MC.esc(p.name)}" type="button">Надеть</button>`;
+        return `<button class="btn btn-sm pfx-wear" data-name="${esc(p.name)}" type="button">Надеть</button>`;
       }
 
       function render() {
@@ -106,7 +124,8 @@
         openHost.querySelectorAll('.pfx-wear').forEach(btn => {
           btn.addEventListener('click', () => {
             if (!user) return;
-            Auth.updateCurrentUser(u => { u.activePrefix = btn.dataset.name; });
+            worn = btn.dataset.name;
+            try { Auth.updateCurrentUser(u => { u.activePrefix = worn; }); } catch (e) {}
             if (window.DB && DB.refreshPrefixColors) DB.refreshPrefixColors().catch(() => {});
             if (window.buildHeader) buildHeader();
             render();
@@ -115,15 +134,6 @@
       }
 
       render();
-
-      $$('.pfx-tabs .os-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          $$('.pfx-tabs .os-tab').forEach(b => b.classList.toggle('active', b === btn));
-          const open = btn.dataset.tab === 'open';
-          openHost.style.display = open ? '' : 'none';
-          closedHost.style.display = open ? 'none' : '';
-        });
-      });
     });
   </script>
 </body>
