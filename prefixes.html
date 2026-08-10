@@ -54,7 +54,18 @@
         try { prefixes = await DB.listPrefixes() || []; } catch (e) { prefixes = []; }
       }
 
-      const user = (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
+      // Текущий пользователь. В облаке берём СВЕЖИЙ профиль из базы, а не локальный
+      // кэш — иначе выданный только что префикс не появится в «Доступных».
+      let user = (window.Auth && Auth.getCurrentUser) ? Auth.getCurrentUser() : null;
+      if (user && window.DB && DB.configured && DB.findPlayerByName) {
+        try {
+          const fresh = await DB.findPlayerByName(user.name);
+          if (fresh) user = fresh;
+        } catch (e) {}
+      }
+      if (user && window.DB && DB.refreshPrefixColors) {
+        DB.refreshPrefixColors().catch(() => {});
+      }
       const mine = new Set(Array.isArray(user && user.prefixes) ? user.prefixes : []);
       const worn = (user && user.activePrefix) || '';
 

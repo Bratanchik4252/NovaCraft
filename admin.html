@@ -132,6 +132,10 @@
           <h3>Обращения</h3>
           <p class="text-muted">Все тикеты игроков. Ответ пишется от имени «Администрация».</p>
           <div class="glass cab-card">
+            <div class="seg adm-tickets-filter" style="margin-bottom:12px">
+              <button class="os-tab active" data-tf="open" type="button">Активные</button>
+              <button class="os-tab" data-tf="closed" type="button">Закрытые</button>
+            </div>
             <div id="tickets-app"></div>
           </div>
         </div>
@@ -607,6 +611,16 @@
       // ============================================================
       const ticketsApp = document.getElementById('tickets-app');
       let tickets = [], currentTicketId = null;
+      let ticketFilter = 'open'; // 'open' | 'closed'
+
+      document.querySelectorAll('.adm-tickets-filter .os-tab').forEach(b => {
+        b.addEventListener('click', () => {
+          if (b.dataset.tf === ticketFilter) return;
+          ticketFilter = b.dataset.tf;
+          currentTicketId = null;
+          renderTickets();
+        });
+      });
 
       function esc2(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -624,10 +638,21 @@
 
       async function renderTickets() {
         await loadTickets();
-        if (!currentTicketId && tickets.length) currentTicketId = tickets[0].id;
-        if (currentTicketId && !tickets.some(t => String(t.id) === String(currentTicketId))) currentTicketId = tickets[0] ? tickets[0].id : null;
+        const visible = tickets.filter(t => ticketFilter === 'open' ? t.status === 'open' : t.status === 'closed');
 
-        const list = tickets.map(t => `
+        // Переключаем кнопки фильтра и показываем количество
+        document.querySelectorAll('.adm-tickets-filter .os-tab').forEach(b => {
+          const openCount = tickets.filter(t => t.status === 'open').length;
+          const closedCount = tickets.length - openCount;
+          b.textContent = b.dataset.tf === 'open' ? ('Активные (' + openCount + ')') : ('Закрытые (' + closedCount + ')');
+          b.classList.toggle('active', b.dataset.tf === ticketFilter);
+        });
+
+        if (!currentTicketId || !visible.some(t => String(t.id) === String(currentTicketId))) {
+          currentTicketId = visible.length ? visible[0].id : null;
+        }
+
+        const list = visible.map(t => `
           <div class="adm-ticket-item ${t.status === 'closed' ? 'closed' : ''} ${String(t.id) === String(currentTicketId) ? 'active' : ''}"
                data-tid="${esc2(t.id)}">
             <div style="font-weight:700">${esc2(t.subject)}</div>
@@ -645,7 +670,7 @@
 
         ticketsApp.innerHTML = `
           <div class="adm-ticket-layout">
-            <div class="adm-ticket-list">${list || '<p class="text-muted">Обращений пока нет.</p>'}</div>
+            <div class="adm-ticket-list">${list || '<p class="text-muted">' + (ticketFilter === 'open' ? 'Активных обращений нет.' : 'Закрытых обращений нет.') + '</p>'}</div>
             <div>
               <div class="adm-thread-body">${msgs}</div>
               <div style="display:flex;gap:8px;margin-top:12px">
