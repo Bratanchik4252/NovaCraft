@@ -382,3 +382,25 @@ create policy "bans_admin_delete"     on public.bans     for delete using (is_st
 create policy "team_admin_delete"     on public.team     for delete using (is_staff());
 create policy "prefixes_admin_delete" on public.prefixes for delete using (is_staff());
 create policy "rules_admin_delete"    on public.rules    for delete using (is_staff());
+
+-- ---------- Лайки профилей ----------
+-- Один игрок — один лайк на профиль. Лайк ставится только авторизованным
+-- (anon вставить не сможет), счётчик виден всем.
+create table if not exists public.likes (
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  liker_id   uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (profile_id, liker_id)
+);
+
+alter table public.likes enable row level security;
+
+drop policy if exists "likes_select" on public.likes;
+drop policy if exists "likes_insert" on public.likes;
+drop policy if exists "likes_delete" on public.likes;
+create policy "likes_select" on public.likes
+  for select using (true);
+create policy "likes_insert" on public.likes
+  for insert with check (auth.uid() = liker_id);
+create policy "likes_delete" on public.likes
+  for delete using (auth.uid() = liker_id);

@@ -144,25 +144,59 @@
     const viewsEl = $('#player-views');
     if (viewsEl) viewsEl.textContent = Number(views[key]).toLocaleString('ru-RU');
 
-    // Лайки
-    let likes = {};
-    try { likes = JSON.parse(localStorage.getItem('mc:profile-likes') || '{}'); } catch (e) {}
-    if (!likes[key]) likes[key] = { count: 0, liked: false };
+    // Лайки. В облаке (Supabase) хранятся в таблице likes — общие для всех
+    // аккаунтов. Без Supabase — фолбэк на localStorage (только этот браузер).
     const btn = $('#player-heart');
     const countEl = $('#player-heart-count');
     if (!btn || !countEl) return;
 
-    const renderLike = () => {
-      btn.classList.toggle('liked', !!likes[key].liked);
-      countEl.textContent = Number(likes[key].count);
+    const isCloud = !!(window.DB && DB.configured && p.id);
+    let likes = {};
+    try { likes = JSON.parse(localStorage.getItem('mc:profile-likes') || '{}'); } catch (e) {}
+    const localLike = likes[key] || { count: 0, liked: false };
+    let liked = !!localLike.liked;
+    let count = Number(localLike.count) || 0;
+
+    const msgEl = $('#player-like-msg');
+    const flashMsg = (text) => {
+      if (!msgEl) return;
+      msgEl.textContent = text;
+      clearTimeout(msgEl._t);
+      msgEl._t = setTimeout(() => { msgEl.textContent = ''; }, 4000);
     };
-    renderLike();
-    btn.addEventListener('click', () => {
-      likes[key].liked = !likes[key].liked;
-      likes[key].count = Math.max(0, (Number(likes[key].count) || 0) + (likes[key].liked ? 1 : -1));
-      try { localStorage.setItem('mc:profile-likes', JSON.stringify(likes)); } catch (e) {}
-      renderLike();
-    });
+
+    const setUi = () => {
+      btn.classList.toggle('liked', liked);
+      countEl.textContent = count;
+    };
+
+    if (isCloud) {
+      DB.getLikes(p.id).then(res => {
+        if (res) { count = res.count; liked = res.liked; setUi(); }
+      }).catch(() => {});
+      btn.addEventListener('click', async () => {
+        const newLiked = !liked;
+        const res = await DB.setLike(p.id, newLiked);
+        if (!res || !res.ok) {
+          flashMsg('Лайк не сохранился: ' + ((res && res.error) || 'ошибка').slice(0, 120));
+          return;
+        }
+        liked = newLiked;
+        count = Math.max(0, count + (newLiked ? 1 : -1));
+        setUi();
+      });
+    } else {
+      setUi();
+      btn.addEventListener('click', () => {
+        liked = !liked;
+        count = Math.max(0, count + (liked ? 1 : -1));
+        localLike.liked = liked;
+        localLike.count = count;
+        likes[key] = localLike;
+        try { localStorage.setItem('mc:profile-likes', JSON.stringify(likes)); } catch (e) {}
+        setUi();
+      });
+    }
   }
 
   // ---------- Привилегия ----------

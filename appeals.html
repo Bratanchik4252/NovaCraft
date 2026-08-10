@@ -207,8 +207,15 @@
       }
 
       // ---------- Ответ администратора (заглушка) ----------
+      // Автоответ ставится ТОЛЬКО на первое сообщение нового обращения.
+      // Как только в переписке есть ответы (администратор уже в диалоге),
+      // ничего не подставляем — иначе заглушка лезет в реальную беседу.
       function adminReply(ticket, userText) {
         if (ticket.status !== 'open') return;
+        if (ticket.messages.length > 1) {
+          if (notice) notice.style.display = 'none';
+          return;
+        }
         busy = true;
         const typing = document.createElement('div');
         typing.className = 'chat-typing';

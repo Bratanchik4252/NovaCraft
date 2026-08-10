@@ -2353,8 +2353,6 @@ main {
   text-align: center;
 }
 .pfx-name { font-size: 18px; font-weight: 800; }
-.pfx-priority { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-
 .pfx-worn-mark { font-size: 13px; font-weight: 800; color: var(--success); }
 
 .pfx-worn {

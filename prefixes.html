@@ -92,7 +92,6 @@
         return `
           <div class="pfx-card glass">
             <span class="pfx-name"${p.color ? ` style="color:${esc(p.color)};text-shadow:0 0 12px ${esc(p.color)}"` : ''}>${esc(p.name)}</span>
-            <span class="pfx-priority">${Number(p.priority) > 0 ? 'приоритет ' + p.priority : 'без приоритета'}</span>
             ${extra || ''}
           </div>
         `;
@@ -100,10 +99,19 @@
 
       function wearBtn(p) {
         if (worn === p.name) {
-          return `<span class="pfx-worn-mark">&#10003; Надето</span>`;
+          return `<span class="pfx-worn-mark">&#10003; Надето</span> <button class="btn btn-sm pfx-remove" type="button">Снять</button>`;
         }
         return `<button class="btn btn-sm pfx-wear" data-name="${esc(p.name)}" type="button">Надеть</button>`;
       }
+
+      const unequip = () => {
+        if (!user || !worn) return;
+        worn = '';
+        try { Auth.updateCurrentUser(u => { u.activePrefix = ''; }); } catch (e) {}
+        if (window.DB && DB.refreshPrefixColors) DB.refreshPrefixColors().catch(() => {});
+        if (window.buildHeader) buildHeader();
+        render();
+      };
 
       function render() {
         const mineList = prefixes.filter(p => mine.has(p.name));
@@ -130,6 +138,9 @@
             if (window.buildHeader) buildHeader();
             render();
           });
+        });
+        openHost.querySelectorAll('.pfx-remove').forEach(b => {
+          b.addEventListener('click', unequip);
         });
       }
 

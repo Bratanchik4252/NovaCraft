@@ -331,6 +331,52 @@
       return data.map(rowToUser).filter(Boolean);
     },
 
+    // ---------------- ЛАЙКИ ПРОФИЛЕЙ ----------------
+    // Облако: таблица likes (один игрок — один лайк на профиль).
+    // Возвращает { count, liked } — liked по текущей сессии. Без Supabase — null.
+    async getLikes(profileId) {
+      if (!this.configured || !profileId) return null;
+      const { count } = await client
+        .from('likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('profile_id', profileId);
+      let liked = false;
+      try {
+        const { data } = await client.auth.getUser();
+        const me = data && data.user ? data.user.id : null;
+        if (me) {
+          const { data: row } = await client
+            .from('likes')
+            .select('liker_id')
+            .eq('profile_id', profileId)
+            .eq('liker_id', me)
+            .maybeSingle();
+          liked = !!row;
+        }
+      } catch (e) {}
+      return { count: count || 0, liked };
+    },
+
+    // Поставить/снять лайк текущей сессией. Только авторизованные.
+    async setLike(profileId, liked) {
+      if (!this.configured || !profileId) return { ok: false, error: 'Supabase не настроен' };
+      let me = null;
+      try {
+        const { data } = await client.auth.getUser();
+        me = data && data.user ? data.user.id : null;
+      } catch (e) {}
+      if (!me) return { ok: false, error: 'Войди в аккаунт, чтобы ставить лайки' };
+      if (liked) {
+        const { error } = await client.from('likes').insert({ profile_id: profileId, liker_id: me });
+        return error ? { ok: false, error: error.message } : { ok: true };
+      }
+      const { error } = await client.from('likes')
+        .delete()
+        .eq('profile_id', profileId)
+        .eq('liker_id', me);
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+
     // ---------------- УВЕДОМЛЕНИЯ (колокольчик) ----------------
     // Возвращает Promise<Array> — уведомления пользователя.
     async listNotifications(userId) {
