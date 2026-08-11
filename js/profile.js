@@ -718,8 +718,10 @@
   function initReferral(user) {
     const linkInput = $('#ref-link');
     if (!linkInput) return;
-    // Относительная ссылка: работает и на Vercel (cleanUrls), и локально.
-    const link = 'auth.html?ref=' + encodeURIComponent(user.name);
+    // Без «.html» на Vercel (cleanUrls), с «.html» — при локальном запуске:
+    // смотрим, как отдана текущая страница.
+    const ext = location.pathname.includes('.html') ? '.html' : '';
+    const link = 'auth' + ext + '?ref=' + encodeURIComponent(user.name);
     linkInput.value = link;
 
     $('#ref-copy').addEventListener('click', () => {
