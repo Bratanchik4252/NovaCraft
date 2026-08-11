@@ -278,7 +278,7 @@ function buildHeader() {
           <a href="appeals.html">Обращения</a>
           <div class="dd-sep"></div>
           <a href="https://discord.gg/mMhmkgExNM" target="_blank" rel="noopener">Наш Discord</a>
-          <a href="#" data-external>Наш Telegram</a>
+          <a href="https://t.me/NOVACRAFT2" target="_blank" rel="noopener">Наш Telegram</a>
           <div class="dd-sep"></div>
           <a href="team.html">Команда проекта</a>
           <a href="players.html">Поиск игроков</a>
@@ -401,7 +401,7 @@ function buildHeader() {
     if (!e.target.closest('.header-right')) dropdown.classList.remove('open');
   });
 
-  // Ссылки Discord/Telegram — пока заглушки
+  // Ссылки Discord/Telegram — актуальные
   // TODO: вставить реальные ссылки после создания сообществ
   $$('[data-external]', dropdown).forEach(a => {
     a.addEventListener('click', e => e.preventDefault());
