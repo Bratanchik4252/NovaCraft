@@ -175,6 +175,34 @@
         return { ok: false, error: 'Ошибка создания профиля: ' + insErr.message };
       }
 
+      // Реферальная система (облако): регистрация по ссылке ?ref=NICK.
+      // Приглашённый получает VIP на 7 дней, у пригласившего — запись в referrals.
+      let refNick = null;
+      try { refNick = localStorage.getItem('mc:ref'); } catch (e) {}
+      if (refNick && String(refNick).trim()) {
+        refNick = String(refNick).trim().slice(0, 32);
+        // Запись рефереру пишется через security definer RPC (RLS не даст
+        // чужому игроку менять чужую строку profiles).
+        try {
+          await client.rpc('add_referral', { target_name: refNick, new_nick: name });
+        } catch (e) {}
+        // VIP на 7 дней приглашённому — своя строка, RLS пропускает.
+        base.privileges = [{
+          name: 'VIP',
+          server: '—',
+          purchaseDate: new Date().toLocaleDateString('ru-RU'),
+          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        }];
+        base.ref_by = refNick;
+        const { error: vipErr } = await client.from('profiles')
+          .update({ privileges: base.privileges, ref_by: base.ref_by })
+          .eq('id', userId);
+        if (vipErr) {
+          return { ok: false, error: 'Ошибка начисления VIP: ' + vipErr.message };
+        }
+        try { localStorage.removeItem('mc:ref'); } catch (e) {}
+      }
+
       const user = rowToUser(base);
       this.saveLocalSession(user);
       return { ok: true, user };

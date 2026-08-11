@@ -254,6 +254,40 @@ $$;
 
 grant execute on function public.grant_prefix(uuid, text, boolean) to authenticated;
 
+-- Реферальная система: регистрация по ссылке ?ref=NICK.
+-- У пригласившего появляется запись { nick, hours: 0 } в referrals.
+-- (security definer — новый игрок не может менять чужую строку по RLS)
+create or replace function public.add_referral(target_name text, new_nick text)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  targ uuid;
+  cur  jsonb;
+begin
+  select id, coalesce(referrals, '[]'::jsonb) into targ, cur
+  from public.profiles
+  where lower(name) = lower(target_name);
+
+  if targ is null then
+    return jsonb_build_object('ok', false, 'error', 'Реферер не найден');
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(cur) x
+    where x->>'nick' = new_nick
+  ) then
+    cur := cur || jsonb_build_object('nick', new_nick, 'hours', 0);
+    update public.profiles set referrals = cur where id = targ;
+  end if;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.add_referral(text, text) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.logs    enable row level security;
 alter table public.notifications enable row level security;
