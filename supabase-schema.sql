@@ -438,3 +438,55 @@ create policy "likes_insert" on public.likes
   for insert with check (auth.uid() = liker_id);
 create policy "likes_delete" on public.likes
   for delete using (auth.uid() = liker_id);
+
+-- ==========================================================================
+-- Лаунчер NOVACRAFT
+-- ==========================================================================
+
+-- ---------- Настройки лаунчера (key/value) ----------
+-- Здесь лежит адрес игрового сервера (server_host / server_port) и прочие
+-- настройки, которые НЕ должны быть зашиты в клиент: лаунчер запрашивает
+-- их из БД при запуске. Читают только авторизованные, пишет персонал.
+create table if not exists public.launcher_meta (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.launcher_meta (key, value) values
+  ('server_host', ''),
+  ('server_port', '25565')
+on conflict (key) do nothing;
+
+alter table public.launcher_meta enable row level security;
+
+drop policy if exists "launcher_meta_select" on public.launcher_meta;
+drop policy if exists "launcher_meta_insert" on public.launcher_meta;
+drop policy if exists "launcher_meta_update" on public.launcher_meta;
+create policy "launcher_meta_select" on public.launcher_meta
+  for select using (auth.uid() is not null);
+create policy "launcher_meta_insert" on public.launcher_meta
+  for insert with check (is_staff());
+create policy "launcher_meta_update" on public.launcher_meta
+  for update using (is_staff());
+
+-- ---------- Бан железа (HWID) ----------
+-- Считается из железа ПК и сверяется лаунчером при старте и входе.
+-- Читать может любой (проверка до логина), менять — только создатель (уровень 3).
+create table if not exists public.hwid_bans (
+  hwid      text primary key,
+  reason    text,
+  banned_at timestamptz not null default now()
+);
+
+alter table public.hwid_bans enable row level security;
+
+drop policy if exists "hwid_bans_select" on public.hwid_bans;
+drop policy if exists "hwid_bans_insert" on public.hwid_bans;
+drop policy if exists "hwid_bans_delete" on public.hwid_bans;
+create policy "hwid_bans_select" on public.hwid_bans
+  for select using (true);
+create policy "hwid_bans_insert" on public.hwid_bans
+  for insert with check (is_creator());
+create policy "hwid_bans_delete" on public.hwid_bans
+  for delete using (is_creator());
