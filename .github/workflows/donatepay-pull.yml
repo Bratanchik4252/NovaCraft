@@ -1,0 +1,28 @@
+name: DonatePay pull
+
+# Vercel Hobby-план не поддерживает crons в vercel.json — планируем здесь.
+# Вызов api/donatepay-pull раз в 5 минут (минимум для GitHub Actions).
+# Нужно: репозиторий -> Settings -> Secrets and variables -> Actions ->
+# Variables -> SITE_URL = твой домен Vercel (например novacraft.vercel.app).
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger donatepay-pull
+        run: |
+          URL="${{ vars.SITE_URL }}"
+          if [ -z "$URL" ]; then
+            echo "::error::Задай переменную SITE_URL в настройках репозитория"
+            exit 1
+          fi
+          case "$URL" in
+            http://*|https://*) ;;
+            *) URL="https://$URL" ;;
+          esac
+          curl -fsS -X POST "$URL/api/donatepay-pull"
