@@ -1,10 +1,9 @@
 /* ==========================================================================
    topup.js — пополнение баланса через DonatePay
    Схема: сайт генерирует уникальный код (NC-XXXXXX) и создаёт «ожидающий
-   платёж» в таблице donations. Страница DonatePay открывается ВНУТРИ модалки
-   (iframe) — игрок не уходит с сайта. Код пишется в сообщении доната,
-   а начисление делает крон/кнопка «Проверить оплату» через api/donatepay-pull
-   (RPC credit_donation).
+   платёж» в таблице donations. Игрок пишет код в сообщении доната.
+   Вебхук DonatePay (api/donatepay-ipn.js) ловит сообщение, находит платёж
+   по коду и начисляет баланс (RPC credit_donation).
    Кнопка «Тестовый платёж (демо)» — начисляет напрямую (RPC demo_credit),
    пока включён флаг site_config.demo_payments. Перед релизом — выключить.
    ========================================================================== */
@@ -16,18 +15,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const amountsHost = document.getElementById('topup-amounts');
   const customInput = document.getElementById('topup-custom');
   const donateBtn = document.getElementById('topup-donate');
+  const codeBox = document.getElementById('topup-code-box');
+  const codeEl = document.getElementById('topup-code');
+  const copyBtn = document.getElementById('topup-copy');
   const checkBtn = document.getElementById('topup-check');
   const demoBtn = document.getElementById('topup-demo');
   const statusEl = document.getElementById('topup-status');
   const historyHost = document.getElementById('topup-history');
   const balanceEl = document.getElementById('topup-balance');
-
-  const payModal = document.getElementById('pay-modal');
-  const payFrame = document.getElementById('pay-frame');
-  const payOpenTab = document.getElementById('pay-open-tab');
-  const payClose = document.getElementById('pay-close');
-  const payCode = document.getElementById('pay-code');
-  const payCopy = document.getElementById('pay-copy');
 
   let amount = 100;
   let currentCode = null;
@@ -66,7 +61,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderBalance() {
     const u = currentUser();
-    balanceEl.textContent = u ? fmtRub(Number(u.balanceRub) || 0) : '—';
+    balanceEl.textContent = fmtRub(u ? Number(u.balanceRub) || 0 : 0);
+    if (!u) balanceEl.textContent = '—';
   }
 
   // ---------- Сумма ----------
@@ -83,19 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (v > 0) pickAmount(v);
   });
 
-  // ---------- Копирование кода ----------
-  function copyCode() {
-    if (!currentCode) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(currentCode).catch(() => {});
-    }
-    payCopy.textContent = 'Скопировано ✓';
-    setTimeout(() => { payCopy.textContent = 'Скопировать'; }, 1800);
-  }
-  payCopy.addEventListener('click', copyCode);
-  payCode.addEventListener('click', copyCode);
-
-  // ---------- Пополнение через DonatePay (встроенная модалка) ----------
+  // ---------- Пополнение через DonatePay ----------
   donateBtn.addEventListener('click', async () => {
     const u = currentUser();
     if (!u) { location.href = 'auth.html?redirect=topup.html'; return; }
@@ -114,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const d = await DB.createDonation(u.id, code, sum);
       if (!d) { setStatus('Не удалось создать платёж. Попробуй ещё раз.'); return; }
     } else {
-      // localStorage-режим: храним код локально (крон не работает)
+      // localStorage-режим: храним код локально (вебхука нет)
       try {
         const arr = JSON.parse(localStorage.getItem('mc:donations:' + u.id) || '[]');
         arr.unshift({ id: 'l_' + Date.now(), code, amount: sum, status: 'pending', createdAt: new Date().toISOString() });
@@ -122,26 +106,52 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (e) {}
     }
     currentCode = code;
+    // Код показываем только если вкладка DonatePay не открылась
+    // (страница осталась видимой) — тогда его вписывают в «Сообщение» вручную.
+    codeBox.style.display = 'none';
+    setStatus('');
 
-    // Сумма и код подставляются параметрами — плательщик просто вводит карту.
+    // Открываем страницу доната DonatePay.
+    // Сумма и код подставляются параметрами — плательщик просто вводит карту
+    // и платит (код в сообщении уже заполнен). Если DonatePay не подхватит
+    // ?message — код вписывается вручную (поле «Сообщение» на странице доната).
     let base = donateBase;
-    if (!/^https?:\/\//i.test(base)) base = 'https://' + base;
+    if (!/^https?:\/\//i.test(base)) base = 'https://' + base; // вдруг в админке без http
     const link = base + '?amount=' + sum + '&message=' + encodeURIComponent(code);
 
-    payCode.textContent = code;
-    payOpenTab.href = link;
-    payFrame.src = link;
-    payModal.classList.add('open');
+    // Пробуем открыть вкладку; если блокировщик всплывающих окон не дал —
+    // эмулируем клик по ссылке (часто пропускается после действия пользователя).
+    let win = null;
+    try { win = window.open(link, '_blank', 'noopener'); } catch (e) {}
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // Если через 1.5 сек страница всё ещё видима (вкладка не открылась) —
+    // показываем код и прямую ссылку.
+    setTimeout(() => {
+      if (document.hidden) return; // вкладка DonatePay открылась и в фокусе
+      codeEl.textContent = code;
+      codeBox.style.display = '';
+      setStatus('Не открылась вкладка? Перейди по ссылке: ' + link, false);
+    }, 1500);
   });
 
-  function closePayModal() {
-    payModal.classList.remove('open');
-    payFrame.src = 'about:blank';
+  function copyCode() {
+    if (!currentCode) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentCode).catch(() => {});
+    }
+    copyBtn.textContent = 'Скопировано ✓';
+    setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1800);
   }
-  payClose.addEventListener('click', closePayModal);
-  payModal.addEventListener('click', e => {
-    if (e.target === e.currentTarget) closePayModal();
-  });
+  copyBtn.addEventListener('click', copyCode);
+  codeEl.addEventListener('click', copyCode);
 
   // ---------- Проверка оплаты ----------
   checkBtn.addEventListener('click', async () => {
@@ -150,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setStatus('Проверяем…');
 
     // Сначала просим сервер опросить DonatePay (api/donatepay-pull) —
-    // тогда свежий донат начислится сразу, не дожидаясь планировщика.
+    // тогда свежий донат начислится сразу, не дожидаясь крона.
     if (cloud) {
       try {
         await fetch('/api/donatepay-pull', { method: 'POST' });
@@ -169,7 +179,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (paid) {
       setStatus('Оплата найдена! Баланс пополнен.', true);
       currentCode = null;
-      closePayModal();
+      codeBox.style.display = 'none';
+      // Обновляем баланс из облака
       if (cloud && DB.restoreSession) {
         await DB.restoreSession();
       }
