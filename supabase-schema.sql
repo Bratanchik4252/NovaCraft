@@ -548,6 +548,39 @@ insert into public.site_config (key, value) values
 on conflict (key) do nothing;
 
 -- ==========================================================================
+-- Скидки (акции): глобальные (scope='global') и на конкретную привилегию
+-- (scope='privilege', поле privilege). Могут пересекаться по датам —
+-- действует максимальный процент. starts_at/ends_at = null — без ограничений.
+-- ВАЖНО: таблица создаётся ДО функции privilege_discount (она на неё ссылается).
+-- ==========================================================================
+create table if not exists public.discounts (
+  id        bigint generated always as identity primary key,
+  scope     text not null default 'global',  -- 'global' | 'privilege'
+  privilege text not null default '',        -- при scope='privilege': название привилегии
+  percent   integer not null default 0,      -- скидка в процентах (0..100)
+  starts_at date,                            -- начало акции (null = без начала)
+  ends_at   date,                            -- конец акции (null = без конца)
+  sort      integer not null default 0,
+  enabled   boolean not null default true
+);
+create index if not exists discounts_active_idx on public.discounts (enabled, scope, privilege);
+
+alter table public.discounts enable row level security;
+
+drop policy if exists "discounts_select" on public.discounts;
+create policy "discounts_select" on public.discounts
+  for select using (true);
+drop policy if exists "discounts_admin_insert" on public.discounts;
+drop policy if exists "discounts_admin_update" on public.discounts;
+drop policy if exists "discounts_admin_delete" on public.discounts;
+create policy "discounts_admin_insert" on public.discounts
+  for insert with check (is_staff());
+create policy "discounts_admin_update" on public.discounts
+  for update using (is_staff());
+create policy "discounts_admin_delete" on public.discounts
+  for delete using (is_staff());
+
+-- ==========================================================================
 -- Скидка для привилегии: максимальный процент из активных акций
 -- (глобальных и по конкретной привилегии), с учётом дат.
 -- ==========================================================================
@@ -920,38 +953,6 @@ create policy "privilege_commands_admin_insert" on public.privilege_commands
 create policy "privilege_commands_admin_update" on public.privilege_commands
   for update using (is_staff());
 create policy "privilege_commands_admin_delete" on public.privilege_commands
-  for delete using (is_staff());
-
--- ==========================================================================
--- Скидки (акции): глобальные (scope='global') и на конкретную привилегию
--- (scope='privilege', поле privilege). Могут пересекаться по датам —
--- действует максимальный процент. starts_at/ends_at = null — без ограничений.
--- ==========================================================================
-create table if not exists public.discounts (
-  id        bigint generated always as identity primary key,
-  scope     text not null default 'global',  -- 'global' | 'privilege'
-  privilege text not null default '',        -- при scope='privilege': название привилегии
-  percent   integer not null default 0,      -- скидка в процентах (0..100)
-  starts_at date,                            -- начало акции (null = без начала)
-  ends_at   date,                            -- конец акции (null = без конца)
-  sort      integer not null default 0,
-  enabled   boolean not null default true
-);
-create index if not exists discounts_active_idx on public.discounts (enabled, scope, privilege);
-
-alter table public.discounts enable row level security;
-
-drop policy if exists "discounts_select" on public.discounts;
-create policy "discounts_select" on public.discounts
-  for select using (true);
-drop policy if exists "discounts_admin_insert" on public.discounts;
-drop policy if exists "discounts_admin_update" on public.discounts;
-drop policy if exists "discounts_admin_delete" on public.discounts;
-create policy "discounts_admin_insert" on public.discounts
-  for insert with check (is_staff());
-create policy "discounts_admin_update" on public.discounts
-  for update using (is_staff());
-create policy "discounts_admin_delete" on public.discounts
   for delete using (is_staff());
 
 -- ---------- Хранилище фоток китов (Supabase Storage) ----------
