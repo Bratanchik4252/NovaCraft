@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       String(c.privilege) === String(priv.name) && String(c.server) === String(selected));
     if (rows.length) {
       return rows
-        .map(c => ({ cmd: String(c.cmd || '').trim(), desc: String(c.desc || '').trim() }))
+        .map(c => ({ cmd: String(c.cmd || '').trim(), desc: String(c.description || '').trim() }))
         .filter(x => x.cmd);
     }
     const legacy = Array.isArray(priv.commands) ? priv.commands : [];

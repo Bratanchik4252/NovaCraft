@@ -900,7 +900,7 @@ create table if not exists public.privilege_commands (
   privilege text not null,                   -- название привилегии (глобальное)
   server    text not null,                   -- сервер
   cmd       text not null,                   -- команда, напр. /fly
-  desc      text not null default '',        -- описание команды
+  description text not null default '',      -- описание команды (не desc — резерв. слово)
   sort      integer not null default 0,
   unique (privilege, server, cmd)
 );

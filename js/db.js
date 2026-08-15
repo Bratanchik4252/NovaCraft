@@ -728,7 +728,7 @@
           privilege: String(privilege),
           server: String(server),
           cmd: String(p.cmd).trim(),
-          desc: String(p.desc || '').trim(),
+          description: String(p.desc || '').trim(),
           sort: i,
         }));
       if (!rows.length) return { ok: true };

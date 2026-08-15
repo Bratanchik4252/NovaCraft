@@ -734,7 +734,7 @@
             if (String(c.privilege || '') !== name) return;
             const s = String(c.server || '');
             if (!commandData[s]) commandData[s] = [];
-            commandData[s].push({ cmd: c.cmd, desc: c.desc || '' });
+            commandData[s].push({ cmd: c.cmd, desc: c.description || '' });
           });
           // миграция старого формата: команды были глобальные (jsonb privileges.commands)
           const legacy = row && Array.isArray(row.commands) ? row.commands : [];
@@ -895,7 +895,7 @@
               rows = rows.filter(r => String(r.privilege) !== String(name));
               Object.keys(commandData).forEach(srv => {
                 (commandData[srv] || []).forEach((p, i) => {
-                  rows.push({ id: 'l_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), privilege: name, server: srv, cmd: p.cmd, desc: p.desc, sort: i });
+                  rows.push({ id: 'l_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), privilege: name, server: srv, cmd: p.cmd, description: p.desc, sort: i });
                 });
               });
               try { localStorage.setItem('mc:admin:privilege_commands', JSON.stringify(rows)); } catch (e2) {}
