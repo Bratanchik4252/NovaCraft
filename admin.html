@@ -345,13 +345,12 @@
         if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
       });
 
-      // Деньги (настройки DonatePay + корректировка баланса) — только создатель (3 уровень)
-      if (!isCreator) {
-        ['shop-cfg-card', 'shop-bal-card'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'none';
-        });
-      }
+      // Деньги (настройки DonatePay + корректировка баланса) — только создатель (3 уровень).
+      // В HTML блоки скрыты по умолчанию — показываем их создателю.
+      ['shop-cfg-card', 'shop-bal-card'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = isCreator ? '' : 'none';
+      });
       tabs.forEach(t => t.addEventListener('click', () => {
         tabs.forEach(x => x.classList.toggle('active', x === t));
         panel.querySelectorAll('.cab-panel').forEach(p => {
