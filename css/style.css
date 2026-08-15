@@ -3060,13 +3060,75 @@ main {
    Магазин v3: привилегии списком, блок покупки перед командами, замки
    ========================================================================== */
 
-/* Список привилегий — вертикальный */
-.shop-priv-list {
+/* Квадраты привилегий — сетка; по клику ниже деталь */
+.shop-priv-squares {
   margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.shop-square {
+  --pcol: var(--info);
+  position: relative;
+  aspect-ratio: 1 / 1;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 2px solid var(--glass-border);
+  background: linear-gradient(160deg, var(--glass-bg), var(--glass-bg-hover));
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: center;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
+
+.shop-square:hover {
+  transform: translateY(-3px);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--shadow);
+}
+
+.shop-square.active {
+  border-color: var(--info);
+  box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.35), var(--shadow);
+}
+
+.shop-square .sq-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.9;
+}
+
+.shop-square .sq-name {
+  position: relative;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+  z-index: 1;
+}
+
+.shop-square .sq-price {
+  position: relative;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  z-index: 1;
+}
+
+/* Деталь выбранной привилегии — ниже квадратов */
+.shop-detail { margin-top: 26px; }
 
 .shop-card { width: 100%; max-width: none; }
 

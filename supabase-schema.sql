@@ -514,8 +514,22 @@ create table if not exists public.privileges (
   enabled       boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
 );
 alter table public.privileges add column if not exists price_forever numeric not null default 0;
+alter table public.privileges add column if not exists photo text;   -- картинка квадрата в магазине (необязательно)
 drop index if exists privileges_server_idx;
 create index if not exists privileges_global_idx on public.privileges (hierarchy, sort);
+
+-- ---------- Фиксированный набор привилегий ----------
+-- В админке создание привилегий убрано — только редактирование.
+-- Именно эти 5 (не больше и не меньше): VIP, PREMIUM, GRAND, DELUXE, LEGEND.
+create unique index if not exists privileges_name_lower_idx on public.privileges (lower(name));
+
+insert into public.privileges (name, hierarchy, price_rub, price_forever, color, description, sort, enabled) values
+  ('VIP',    1, 0, 0, '#4dff88', 'Базовая привилегия: базовые команды и набор бонусов на сервере.', 1, true),
+  ('PREMIUM',2, 0, 0, '#7aa2ff', 'Расширенный набор команд и улучшенные бонусы.', 2, true),
+  ('GRAND',  3, 0, 0, '#b980ff', 'Продвинутая привилегия: ещё больше команд и возможностей.', 3, true),
+  ('DELUXE', 4, 0, 0, '#ffc83c', 'Премиальный набор: все команды и лучшие бонусы.', 4, true),
+  ('LEGEND', 5, 0, 0, '#ff5b5b', 'Топ-привилегия: абсолютно все команды и возможности проекта.', 5, true)
+on conflict (lower(name)) do nothing;
 
 -- ---------- Ожидающие пополнения (связка DonatePay -> аккаунт) ----------
 -- При пополнении сайт генерирует уникальный код (NC-XXXXXX), игрок пишет его

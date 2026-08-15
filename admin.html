@@ -276,9 +276,12 @@
           <p class="text-muted">
             Привилегии магазина (shop.html) — настраиваются с уровня 2 (администратор).
             Настройки пополнения и баланс (деньги) — только с уровня 3 (создатель).
-            <b>Привилегия глобальная</b> (одна на все сервера): название, цена, цвет общие.
+            <b>Набор фиксированный:</b> VIP, PREMIUM, GRAND, DELUXE, LEGEND — создание убрано,
+            только редактирование. Привилегии <b>глобальные</b> (одна на все сервера).
             <b>Старшинство</b> — чем больше число, тем «топовее»: команды более топовых привилегий
             в магазине показываются под замком «Доступно от X».
+            В магазине — <b>квадраты привилегий</b> (можно с картинкой), по клику на квадрат
+            ниже показываются киты, команды и покупка этой привилегии.
             Команды у привилегии <b>свои на каждом сервере</b> (задаются в форме привилегии,
             с выбором сервера), киты — в разделе «Киты» (сервер + привилегия).
           </p>
@@ -286,7 +289,7 @@
           <div class="glass cab-card">
             <div class="adm-toolbar">
               <span class="text-muted" style="font-size:13px" id="privileges-count"></span>
-              <button class="btn btn-sm btn-primary" data-new="privileges" type="button">+ Создать привилегию</button>
+              <span class="text-muted" style="font-size:12px">Набор фиксированный: VIP, PREMIUM, GRAND, DELUXE, LEGEND — только редактирование</span>
             </div>
             <div id="privileges-list"></div>
           </div>
@@ -396,7 +399,7 @@
       // ---------- Вкладки ----------
       // Минимальный уровень для каждой вкладки: 1 — хелпер (только обращения),
       // 2 — администратор (всё, кроме уровней), 3 — создатель (всё).
-      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2, shop: 2 };
+      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2, kits: 2, discounts: 2, shop: 2 };
       const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
       tabs.forEach(tab => {
         if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
@@ -520,13 +523,14 @@
         },
         privileges: {
           label: 'Привилегия',
-          columns: [['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
+          columns: [['photoThumb', 'Фото'], ['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
           fields: [
-            { key: 'name', label: 'Название привилегии (глобальное, одинаковое на всех серверах)', type: 'text', required: true },
+            { key: 'name', label: 'Название привилегии (глобальное; набор фиксированный: VIP, PREMIUM, GRAND, DELUXE, LEGEND)', type: 'text', required: true },
             { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды более топовых привилегий в магазине под замком)', type: 'number' },
             { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
             { key: 'price_forever', label: 'Цена «навсегда» (рубли)', type: 'number' },
-            { key: 'color', label: 'Цвет блока привилегии', type: 'color' },
+            { key: 'color', label: 'Цвет квадрата привилегии', type: 'color' },
+            { key: 'photo', label: 'Картинка квадрата (необязательно; если пусто — квадрат просто цветной)', type: 'photo' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
             { key: 'commands', label: 'Команды привилегии (свои на каждом сервере)', type: 'commands', hint: 'У привилегии свои команды на каждом сервере. Выбери сервер сверху и добавь пары «команда — описание».' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },

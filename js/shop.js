@@ -1,12 +1,11 @@
 /* ==========================================================================
    shop.js — магазин привилегий
-   Привилегии ГЛОБАЛЬНЫЕ (название, цена, цвет общие на все сервера).
-   Команды — СВОИ на каждом сервере (таблица privilege_commands),
-   киты — на сервер + привилегию (таблица kits), скидки — discounts.
-   Поток: выбор сервера → блоки привилегий → блок покупки (1/3/6/12 мес
-   или «навсегда» по price_forever, со скидкой) → команды полным списком
-   (команды привилегий выше по старшинству — под замком «Доступно от X»)
-   → киты. Все секции открыты всегда (без аккордеонов).
+   Привилегии ГЛОБАЛЬНЫЕ, набор фиксированный: VIP, PREMIUM, GRAND, DELUXE,
+   LEGEND (в админке только редактирование). Команды — СВОИ на каждом сервере
+   (privilege_commands), киты — на сервер + привилегию (kits), скидки —
+   discounts. В магазине: квадраты привилегий (можно с картинкой) → по клику
+   ниже деталь: киты (фото), команды (с замками «Доступно от X» для привилегий
+   выше по старшинству) и блок покупки (1/3/6/12 мес или «навсегда»).
    Покупка: списание баланса + выдача в БД (RPC purchase_privilege).
    ========================================================================== */
 
@@ -22,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let commandRows = [];   // privilege_commands: { privilege, server, cmd, desc }
   let discounts = [];     // акции
   let selected = null;    // выбранный сервер (имя)
+  let selectedPrivId = null; // id выбранной привилегии (квадрата)
   let currentBuy = null;  // { priv, months, forever, total }
   const DURATIONS = [1, 3, 6, 12];
 
@@ -51,9 +51,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const servermenu = document.getElementById('servermenu');
   const content = document.getElementById('shop-content');
   const hint = document.getElementById('shop-hint');
-  const listHost = document.getElementById('shop-priv-list');
+  const squaresHost = document.getElementById('shop-squares');
+  const detailHost = document.getElementById('shop-detail');
 
-  // Полоска баланса (создаётся один раз над списком)
+  // Полоска баланса (создаётся один раз над сеткой)
   const balHost = document.createElement('div');
   balHost.id = 'shop-balance';
   balHost.className = 'shop-balance';
@@ -110,8 +111,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     ssbMeta.textContent = s.version ? 'Версия ' + s.version : '';
     stage.classList.add('is-selected');
     content.classList.add('active');
+
+    const list = sortedPrivs();
+    selectedPrivId = list.length ? String(list[0].id) : null;
+    renderSquares();
     renderBalanceBar();
-    renderList();
+    renderDetail();
   }
 
   // ---------- Баланс ----------
@@ -251,8 +256,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null;
   }
 
-  // ---------- Карточки привилегий ----------
-  function privHtml(priv) {
+  // ---------- Квадраты привилегий ----------
+  function renderSquares() {
+    hint.style.display = 'none';
+    const list = sortedPrivs();
+    if (!list.length) {
+      squaresHost.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px 0">Привилегии ещё не добавлены. Загляни позже.</p>';
+      detailHost.style.display = 'none';
+      return;
+    }
+    detailHost.style.display = '';
+    squaresHost.innerHTML = list.map(priv => {
+      const color = priv.color || 'var(--info)';
+      const name = MC.esc(priv.name || '');
+      const base = Number(priv.price_rub) || 0;
+      const active = String(priv.id) === String(selectedPrivId);
+      const img = priv.photo
+        ? `<img class="sq-photo" src="${MC.esc(priv.photo)}" alt="${name}" loading="lazy">`
+        : '';
+      return `<button type="button" class="shop-square${active ? ' active' : ''}" data-id="${MC.esc(priv.id)}"
+                style="--pcol:${MC.esc(color)}">
+        ${img}
+        <span class="sq-name" style="color:${MC.esc(color)}">${name}</span>
+        <span class="sq-price">${base ? fmtRub(base) + '/мес' : ''}</span>
+      </button>`;
+    }).join('');
+
+    squaresHost.querySelectorAll('.shop-square').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedPrivId = btn.dataset.id;
+        renderSquares();
+        renderDetail(true);
+      });
+    });
+  }
+
+  // ---------- Деталь привилегии (ниже квадратов) ----------
+  function selectedPriv() {
+    return privileges.find(p => String(p.id) === String(selectedPrivId)) || sortedPrivs()[0] || null;
+  }
+
+  function renderDetail(scrollTo) {
+    const priv = selectedPriv();
+    if (!priv) { detailHost.innerHTML = ''; return; }
     const color = priv.color || 'var(--info)';
     const owned = ownedInfo(priv);
     const eff = buildCommands(priv);
@@ -307,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ).join('') +
     `<button class="os-tab" data-m="0" data-forever="1" type="button">Навсегда${foreverPrice ? '' : ''}</button>`;
 
-    return `
+    detailHost.innerHTML = `
   <article class="shop-card glass" data-id="${MC.esc(priv.id)}" data-months="1" data-forever="0" style="--pcol:${MC.esc(color)}">
     <header class="shop-card-head">
       <span class="shop-dot" style="background:${MC.esc(color)}"></span>
@@ -331,13 +377,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       </button>
     </div>
 
-    ${cmdSection}
     ${kitSection}
+    ${cmdSection}
   </article>`;
+
+    // Длительность / «навсегда»
+    detailHost.querySelectorAll('.shop-dur .os-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const card = detailHost.querySelector('.shop-card');
+        const dur = card.querySelector('.shop-dur');
+        dur.querySelectorAll('.os-tab').forEach(b => b.classList.toggle('active', b === btn));
+        card.dataset.forever = btn.dataset.forever === '1' ? '1' : '0';
+        card.dataset.months = btn.dataset.forever === '1' ? 0 : (Number(btn.dataset.m) || 1);
+        updateBuyBlock(card);
+      });
+    });
+
+    detailHost.querySelector('.shop-buy').addEventListener('click', () => openBuyModal());
+
+    if (scrollTo) detailHost.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function updateBuyBlock(card) {
-    const priv = privileges.find(p => String(p.id) === String(card.dataset.id));
+    const priv = selectedPriv();
     if (!priv) return;
     const forever = card.dataset.forever === '1';
     const months = Number(card.dataset.months) || 1;
@@ -355,43 +417,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (buyTxt) buyTxt.textContent = fmtRub(total);
   }
 
-  function renderList() {
-    hint.style.display = 'none';
-    const list = privileges
-      .filter(p => p.enabled !== false)
-      .sort((a, b) => (Number(a.hierarchy) || 0) - (Number(b.hierarchy) || 0)
-        || (Number(a.sort) || 0) - (Number(b.sort) || 0));
-
-    if (!list.length) {
-      listHost.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px 0">Привилегии ещё не добавлены. Загляни позже.</p>';
-      return;
-    }
-
-    listHost.innerHTML = list.map(privHtml).join('');
-
-    listHost.querySelectorAll('.shop-card').forEach(card => {
-      const dur = card.querySelector('.shop-dur');
-      dur.querySelectorAll('.os-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          dur.querySelectorAll('.os-tab').forEach(b => b.classList.toggle('active', b === btn));
-          card.dataset.forever = btn.dataset.forever === '1' ? '1' : '0';
-          card.dataset.months = btn.dataset.forever === '1' ? 0 : (Number(btn.dataset.m) || 1);
-          updateBuyBlock(card);
-        });
-      });
-      card.querySelector('.shop-buy').addEventListener('click', () => openBuyModal(card));
-    });
-  }
-
   // ---------- Покупка ----------
-  function openBuyModal(card) {
+  function openBuyModal() {
     const user = currentUser();
     if (!user) {
       location.href = 'auth.html?redirect=shop.html';
       return;
     }
-    const priv = privileges.find(p => String(p.id) === String(card.dataset.id));
+    const priv = selectedPriv();
     if (!priv) return;
+    const card = detailHost.querySelector('.shop-card');
     const forever = card.dataset.forever === '1';
     const months = Number(card.dataset.months) || 1;
     const { total, pct } = priceFor(priv, months, forever);
@@ -487,7 +522,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     showToast('Привилегия «' + b.priv.name + '» куплена!');
     renderBalanceBar();
-    renderList();
+    renderSquares();
+    renderDetail();
   }
 
   // Покупка без облака (localStorage): имитация в mc:auth
@@ -533,7 +569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---------- Перерисовка при смене аккаунта ----------
   document.addEventListener('mc:auth-changed', () => {
     renderBalanceBar();
-    if (selected) renderList();
+    if (selected) { renderSquares(); renderDetail(); }
   });
 
   // ---------- Инициализация ----------
