@@ -45,15 +45,9 @@
         Пополнить через DonatePay
       </button>
       <p class="text-muted topup-hint" id="topup-hint" style="font-size:13px;margin-top:8px">
-        Откроется страница DonatePay: сумма и код уже заполнены. Ник можно указать любой
+        Откроется окно оплаты прямо на странице: сумма и код уже заполнены. Ник можно указать любой
         (на начисление не влияет). Останется выбрать способ оплаты и ввести данные карты.
       </p>
-
-      <div id="topup-code-box" style="display:none;margin-top:12px;padding:10px 12px;border:1px dashed var(--glass-border-hover);border-radius:12px;font-size:13px" class="text-muted">
-        Не открылась страница DonatePay? Код для поля «Сообщение»:
-        <b id="topup-code" class="topup-code-sm">NC-XXXXXX</b>
-        <button class="btn btn-sm" id="topup-copy" type="button" style="margin-left:8px">Скопировать</button>
-      </div>
 
       <div style="display:flex;gap:10px;margin-top:14px">
         <button class="btn" id="topup-check" type="button" style="flex:1">Проверить оплату</button>
@@ -67,6 +61,28 @@
       <div id="topup-history" class="topup-history"><p class="text-muted">Пока пусто.</p></div>
     </div>
   </main>
+
+  <!-- Оплата через DonatePay: страница встроена в модалку, чтобы игрок не уходил с сайта -->
+  <div class="modal-overlay" id="pay-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:580px">
+      <h3 style="margin-bottom:6px">Оплата</h3>
+      <p class="text-muted" style="font-size:13px;margin-bottom:10px">
+        Сумма и код уже заполнены. Нажми кнопку оплаты, выбери способ и введи данные карты.
+      </p>
+      <div style="position:relative;border-radius:14px;overflow:hidden;background:#fff;min-height:420px">
+        <iframe id="pay-frame" style="width:100%;height:420px;border:none" title="Оплата через DonatePay"></iframe>
+      </div>
+      <div id="pay-code-row" style="margin-top:10px;padding:8px 12px;border:1px dashed var(--glass-border-hover);border-radius:10px;font-size:13px" class="text-muted">
+        Не заполнилось поле «Сообщение»? Впиши код:
+        <b id="pay-code" class="topup-code-sm">NC-XXXXXX</b>
+        <button class="btn btn-sm" id="pay-copy" type="button" style="margin-left:8px">Скопировать</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <a class="btn" id="pay-open-tab" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center">Открыть в новой вкладке</a>
+        <button class="btn" id="pay-close" type="button" style="flex:1">Закрыть</button>
+      </div>
+    </div>
+  </div>
 
   <footer id="site-footer"></footer>
 
