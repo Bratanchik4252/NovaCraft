@@ -689,8 +689,7 @@
       return (error || !data) ? [] : data;
     },
 
-    // Киты магазина (с фотками). Привилегии ссылаются на них по названию,
-    // фото/описание ищется по паре (server, name).
+    // Киты магазина (с фотками). Свои на каждом (сервер, привилегия).
     async listKits() {
       if (!this.configured) return null;
       const { data, error } = await client
@@ -698,6 +697,49 @@
         .select('*')
         .order('sort', { ascending: true })
         .order('name', { ascending: true });
+      return (error || !data) ? [] : data;
+    },
+
+    // Команды привилегий (свои на каждом сервере): (привилегия, сервер, cmd, desc).
+    async listPrivilegeCommands() {
+      if (!this.configured) return null;
+      const { data, error } = await client
+        .from('privilege_commands')
+        .select('*')
+        .order('server')
+        .order('privilege')
+        .order('sort');
+      return (error || !data) ? [] : data;
+    },
+
+    // Полная замена команд конкретной привилегии на конкретном сервере
+    // (удаляем старые, вставляем новые). RLS: только is_staff().
+    async savePrivilegeCommands(privilege, server, pairs) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error: delErr } = await client
+        .from('privilege_commands')
+        .delete()
+        .eq('privilege', privilege)
+        .eq('server', server);
+      if (delErr) return { ok: false, error: delErr.message };
+      const rows = (Array.isArray(pairs) ? pairs : [])
+        .filter(p => p && String(p.cmd || '').trim())
+        .map((p, i) => ({
+          privilege: String(privilege),
+          server: String(server),
+          cmd: String(p.cmd).trim(),
+          desc: String(p.desc || '').trim(),
+          sort: i,
+        }));
+      if (!rows.length) return { ok: true };
+      const { error } = await client.from('privilege_commands').insert(rows);
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+
+    // Скидки (акции): глобальные и на конкретную привилегию, с датами.
+    async listDiscounts() {
+      if (!this.configured) return null;
+      const { data, error } = await client.from('discounts').select('*').order('sort');
       return (error || !data) ? [] : data;
     },
 
@@ -771,10 +813,16 @@
 
     // Покупка привилегии: списание баланса + выдача происходят в БД
     // (RPC purchase_privilege, security definer) — игрок не может
-    // начислить себе ничего в обход.
-    async purchasePrivilege(privId, months) {
+    // начислить себе ничего в обход. Привилегия глобальная, покупается
+    // на конкретный сервер; forever=true — «навсегда» по price_forever.
+    async purchasePrivilege(privId, months, server, forever) {
       if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
-      const { data, error } = await client.rpc('purchase_privilege', { p_id: privId, months });
+      const { data, error } = await client.rpc('purchase_privilege', {
+        p_id: privId,
+        months: Number(months) || 0,
+        p_server: String(server || ''),
+        p_forever: !!forever,
+      });
       if (error) return { ok: false, error: error.message };
       return data && data.ok !== false
         ? { ok: true, balance: Number(data.balance) }

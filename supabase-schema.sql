@@ -497,23 +497,25 @@ create policy "hwid_bans_delete" on public.hwid_bans
 
 -- ---------- Каталог привилегий магазина ----------
 -- Старшинство (hierarchy): чем больше число, тем «топовее» привилегия.
--- Команды и киты нижестоящих привилегий АВТОМАТИЧЕСКИ переносятся
--- в вышестоящие (на сайте и в лаунчере считается сумма по иерархии),
--- поэтому у каждой привилегии хранятся ТОЛЬКО свои команды/киты.
+-- Привилегия — ГЛОБАЛЬНАЯ: одна на все сервера (название, цена, цвет общие).
+-- Команды у привилегии СВОИ на каждом сервере (таблица privilege_commands),
+-- киты СВОИ на каждом (сервер, привилегия) (таблица kits).
+-- Старшинство (hierarchy): чем больше, тем топовее; команды более топовых
+-- привилегий в магазине показываются под замком «Доступно от X».
 create table if not exists public.privileges (
-  id          bigint generated always as identity primary key,
-  name        text not null,                -- название привилегии (VIP, Dragon, ...)
-  server      text not null default '',     -- название сервера из таблицы servers
-  hierarchy   integer not null default 0,   -- старшинство: чем больше, тем топовее
-  price_rub   numeric not null default 0,   -- цена за 1 месяц, рубли
-  color       text,                         -- hex-цвет карточки привилегии
-  description text not null default '',
-  commands    jsonb not null default '[]',  -- СВОИ команды (напр. /fly, /kit vip)
-  kits        jsonb not null default '[]',  -- СВОИ киты
-  sort        integer not null default 0,
-  enabled     boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
+  id            bigint generated always as identity primary key,
+  name          text not null,                -- название привилегии (VIP, Premium, Dragon, ...)
+  hierarchy     integer not null default 0,   -- старшинство: чем больше, тем топовее
+  price_rub     numeric not null default 0,   -- цена за 1 месяц, рубли
+  price_forever numeric not null default 0,   -- цена «навсегда», рубли
+  color         text,                         -- hex-цвет блока привилегии
+  description   text not null default '',
+  sort          integer not null default 0,
+  enabled       boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
 );
-create index if not exists privileges_server_idx on public.privileges (server, hierarchy, sort);
+alter table public.privileges add column if not exists price_forever numeric not null default 0;
+drop index if exists privileges_server_idx;
+create index if not exists privileges_global_idx on public.privileges (hierarchy, sort);
 
 -- ---------- Ожидающие пополнения (связка DonatePay -> аккаунт) ----------
 -- При пополнении сайт генерирует уникальный код (NC-XXXXXX), игрок пишет его
@@ -546,11 +548,31 @@ insert into public.site_config (key, value) values
 on conflict (key) do nothing;
 
 -- ==========================================================================
+-- Скидка для привилегии: максимальный процент из активных акций
+-- (глобальных и по конкретной привилегии), с учётом дат.
+-- ==========================================================================
+create or replace function public.privilege_discount(p_priv text)
+returns integer
+language sql
+stable
+as $$
+  select coalesce(max(d.percent), 0)::integer
+  from public.discounts d
+  where d.enabled
+    and (d.starts_at is null or d.starts_at <= current_date)
+    and (d.ends_at is null or d.ends_at >= current_date)
+    and (d.scope = 'global' or (d.scope = 'privilege' and d.privilege = p_priv));
+$$;
+
+-- ==========================================================================
 -- RPC: покупка привилегии
 -- security definer — игрок не может сам себе начислить баланс через
 -- profiles.update: списание и выдача происходят только здесь.
+-- Привилегия глобальная, поэтому покупается на конкретный сервер (p_server).
+-- p_forever = true — покупка «навсегда» по цене price_forever.
+-- Цена учитывает активные скидки (privilege_discount).
 -- ==========================================================================
-create or replace function public.purchase_privilege(p_id bigint, months integer)
+create or replace function public.purchase_privilege(p_id bigint, months integer, p_server text, p_forever boolean)
 returns jsonb
 language plpgsql
 security definer set search_path = public
@@ -559,14 +581,19 @@ declare
   me     uuid := auth.uid();
   priv   public.privileges%rowtype;
   rub    numeric;
+  base   numeric;
   price  numeric;
+  disc   integer;
+  srv    text;
+  exp_at bigint;
   cur_privs jsonb;
   cur_trans jsonb;
 begin
   if me is null then
     return jsonb_build_object('ok', false, 'error', 'Войди в аккаунт');
   end if;
-  if months not in (1, 3, 6, 12) then
+  if p_forever is null then p_forever := false; end if;
+  if not p_forever and months not in (1, 3, 6, 12) then
     return jsonb_build_object('ok', false, 'error', 'Неверный срок');
   end if;
 
@@ -578,7 +605,18 @@ begin
     return jsonb_build_object('ok', false, 'error', 'Привилегия недоступна');
   end if;
 
-  price := coalesce(priv.price_rub, 0) * months;
+  srv := coalesce(nullif(btrim(coalesce(p_server, '')), ''), '—');
+  if p_forever then
+    base := coalesce(priv.price_forever, 0);
+    exp_at := null;
+  else
+    base := coalesce(priv.price_rub, 0) * months;
+    exp_at := (extract(epoch from (now() + make_interval(months => months))) * 1000)::bigint;
+  end if;
+
+  disc := public.privilege_discount(priv.name);
+  price := round(base * (100 - disc) / 100.0);
+
   select balance_rub into rub from public.profiles where id = me;
   if rub is null then rub := 0; end if;
   if rub < price then
@@ -590,15 +628,15 @@ begin
 
   cur_privs := cur_privs || jsonb_build_object(
     'name', priv.name,
-    'server', priv.server,
+    'server', srv,
     'purchaseDate', to_char(now(), 'DD.MM.YYYY'),
-    'expiresAt', (extract(epoch from (now() + make_interval(months => months))) * 1000)::bigint
+    'expiresAt', exp_at
   );
 
   cur_trans := jsonb_build_array(jsonb_build_object(
     'type', 'out',
     'title', 'Покупка: ' || priv.name,
-    'server', priv.server,
+    'server', srv,
     'amount', price,
     'unit', 'rub',
     'date', to_char(now(), 'DD.MM.YYYY')
@@ -612,13 +650,14 @@ begin
 
   insert into public.notifications (user_id, type, title, body, url)
   values (me, 'spend', 'Покупка привилегии',
-          'Привилегия «' || priv.name || '» на сервере «' || priv.server || '» на ' || months || ' мес.',
+          'Привилегия «' || priv.name || '» на сервере «' || srv || '»' ||
+            case when p_forever then ' навсегда' else ' на ' || months || ' мес.' end,
           'shop.html');
 
   return jsonb_build_object('ok', true, 'balance', rub - price);
 end;
 $$;
-grant execute on function public.purchase_privilege(bigint, integer) to authenticated;
+grant execute on function public.purchase_privilege(bigint, integer, text, boolean) to authenticated;
 
 -- ==========================================================================
 -- RPC: начисление баланса по донату (вызывает ТОЛЬКО вебхук с service_role)
@@ -819,20 +858,23 @@ create policy "site_config_admin_update" on public.site_config
   for update using (is_staff());
 
 -- ==========================================================================
--- Киты (магазин): отдельная сущность с фоткой, привязана к серверу.
--- Привилегия ссылается на кит по названию (privileges.kits = ['VIP Kit', ...]),
--- а фото/описание подтягивается по паре (server, name) из таблицы kits.
+-- Киты (магазин): СВОИ на каждом (сервер, привилегия). Фото в Supabase
+-- Storage (бакет kit-images) или внешняя ссылка.
 -- ==========================================================================
 create table if not exists public.kits (
   id          bigint generated always as identity primary key,
   server      text not null default '',      -- сервер из таблицы servers
+  privilege   text not null default '',      -- название привилегии (VIP, Premium, ...)
   name        text not null,                 -- название кита (VIP Kit, Dragon Kit, ...)
   photo       text not null default '',      -- URL/путь картинки (Supabase Storage или внешняя ссылка)
   description text not null default '',      -- описание кита (необязательно)
   sort        integer not null default 0,
   enabled     boolean not null default true  -- 1 — показывать в магазине, 0 — скрыть
 );
-create index if not exists kits_server_idx on public.kits (server, sort, name);
+alter table public.kits add column if not exists privilege text not null default '';
+alter table public.kits drop constraint if exists kits_server_name_key;
+create unique index if not exists kits_server_priv_name_idx on public.kits (server, privilege, name);
+create index if not exists kits_server_idx on public.kits (server, privilege, sort);
 
 alter table public.kits enable row level security;
 
@@ -847,6 +889,69 @@ create policy "kits_admin_insert" on public.kits
 create policy "kits_admin_update" on public.kits
   for update using (is_staff());
 create policy "kits_admin_delete" on public.kits
+  for delete using (is_staff());
+
+-- ==========================================================================
+-- Команды привилегий: СВОИ на каждом сервере. Привилегия глобальная,
+-- поэтому команды хранятся отдельно по паре (привилегия, сервер).
+-- ==========================================================================
+create table if not exists public.privilege_commands (
+  id        bigint generated always as identity primary key,
+  privilege text not null,                   -- название привилегии (глобальное)
+  server    text not null,                   -- сервер
+  cmd       text not null,                   -- команда, напр. /fly
+  desc      text not null default '',        -- описание команды
+  sort      integer not null default 0,
+  unique (privilege, server, cmd)
+);
+create index if not exists privilege_commands_server_idx
+  on public.privilege_commands (server, privilege, sort);
+
+alter table public.privilege_commands enable row level security;
+
+drop policy if exists "privilege_commands_select" on public.privilege_commands;
+create policy "privilege_commands_select" on public.privilege_commands
+  for select using (true);
+drop policy if exists "privilege_commands_admin_insert" on public.privilege_commands;
+drop policy if exists "privilege_commands_admin_update" on public.privilege_commands;
+drop policy if exists "privilege_commands_admin_delete" on public.privilege_commands;
+create policy "privilege_commands_admin_insert" on public.privilege_commands
+  for insert with check (is_staff());
+create policy "privilege_commands_admin_update" on public.privilege_commands
+  for update using (is_staff());
+create policy "privilege_commands_admin_delete" on public.privilege_commands
+  for delete using (is_staff());
+
+-- ==========================================================================
+-- Скидки (акции): глобальные (scope='global') и на конкретную привилегию
+-- (scope='privilege', поле privilege). Могут пересекаться по датам —
+-- действует максимальный процент. starts_at/ends_at = null — без ограничений.
+-- ==========================================================================
+create table if not exists public.discounts (
+  id        bigint generated always as identity primary key,
+  scope     text not null default 'global',  -- 'global' | 'privilege'
+  privilege text not null default '',        -- при scope='privilege': название привилегии
+  percent   integer not null default 0,      -- скидка в процентах (0..100)
+  starts_at date,                            -- начало акции (null = без начала)
+  ends_at   date,                            -- конец акции (null = без конца)
+  sort      integer not null default 0,
+  enabled   boolean not null default true
+);
+create index if not exists discounts_active_idx on public.discounts (enabled, scope, privilege);
+
+alter table public.discounts enable row level security;
+
+drop policy if exists "discounts_select" on public.discounts;
+create policy "discounts_select" on public.discounts
+  for select using (true);
+drop policy if exists "discounts_admin_insert" on public.discounts;
+drop policy if exists "discounts_admin_update" on public.discounts;
+drop policy if exists "discounts_admin_delete" on public.discounts;
+create policy "discounts_admin_insert" on public.discounts
+  for insert with check (is_staff());
+create policy "discounts_admin_update" on public.discounts
+  for update using (is_staff());
+create policy "discounts_admin_delete" on public.discounts
   for delete using (is_staff());
 
 -- ---------- Хранилище фоток китов (Supabase Storage) ----------

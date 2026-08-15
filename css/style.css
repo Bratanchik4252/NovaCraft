@@ -3056,50 +3056,177 @@ main {
 
 .shop-balance-row .btn { margin-left: auto; }
 
-/* --- Слайдер карточек привилегий --- */
-.shop-slider { position: relative; }
+/* ==========================================================================
+   Магазин v3: привилегии списком, блок покупки перед командами, замки
+   ========================================================================== */
 
-.shop-slider-track {
-  margin-top: 18px;
+/* Список привилегий — вертикальный */
+.shop-priv-list {
+  margin-top: 26px;
   display: flex;
-  gap: 18px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding: 4px 4px 18px;
-  scrollbar-width: thin;
+  flex-direction: column;
+  gap: 22px;
 }
 
-.shop-slider-track .shop-card {
-  flex: 0 0 340px;
-  max-width: 340px;
-  scroll-snap-align: start;
-}
+.shop-card { width: 100%; max-width: none; }
 
-.shop-slide-btn {
-  position: absolute;
-  top: 42%;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid var(--glass-border);
+.shop-card-head { padding: 4px 4px 6px; }
+
+/* Тело карточки всегда открыто (аккордеоны убраны) */
+.shop-card-body { display: block; grid-template-rows: none; }
+.shop-card-body-inner { overflow: visible; min-height: 0; padding-top: 0; }
+
+/* Блок покупки: ниже выбора сервера, перед командами */
+.shop-buyblock {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
   background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.shop-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shop-price-num { font-size: 28px; font-weight: 900; }
+
+.shop-price-note { font-size: 13px; color: var(--muted); }
+
+.shop-price-old {
+  font-size: 16px;
+  color: var(--muted);
+  text-decoration: line-through;
+  font-weight: 600;
+}
+
+.shop-disc-badge {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--warn);
+  background: rgba(255, 200, 60, 0.15);
+  border: 1px solid rgba(255, 200, 60, 0.4);
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.shop-dur { margin-top: 14px; justify-content: stretch; }
+.shop-dur .os-tab { flex: 1; padding: 8px 6px; font-size: 13px; }
+
+.shop-buy { margin-top: 14px; width: 100%; font-size: 15px; }
+
+.shop-buy[disabled] { cursor: not-allowed; opacity: 0.55; }
+
+/* Секции «Команды» и «Киты» — всегда открыты */
+.shop-section { margin-top: 18px; }
+
+.shop-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.shop-cmds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-cmd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--glass-bg-hover);
+  border: 1px solid var(--glass-border);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.shop-cmd-code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text);
-  font-size: 24px;
-  line-height: 1;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.shop-cmd-desc { color: var(--muted); min-width: 0; }
+
+.shop-cmd .shop-from { margin-left: auto; }
+
+/* Замок: команды привилегий выше по старшинству */
+.shop-cmd.locked { opacity: 0.55; }
+
+.shop-lock {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.shop-lock-note {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--info);
+  white-space: nowrap;
+}
+
+/* Киты привилегии на сервере */
+.shop-kits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.shop-kit-card {
+  padding: 14px;
+  text-align: center;
+  border-radius: 16px;
+  scroll-margin: 20px;
+}
+
+.shop-kit-photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-hover);
+}
+
+.shop-kit-photo-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: background 0.2s, color 0.2s;
 }
 
-.shop-slide-btn:hover { background: var(--glass-bg-hover); color: var(--info); }
+.shop-kit-ico-big { font-size: 48px; color: var(--muted); }
 
-#slider-prev { left: -16px; }
-#slider-next { right: -16px; }
+.shop-kit-name { margin-top: 10px; font-weight: 800; font-size: 15px; }
+
+.shop-kit-desc { margin-top: 5px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+/* Скрываем остатки v2 */
+.shop-slider, .shop-slide-btn, .shop-tabs { display: none; }
+
+@media (max-width: 600px) {
+  .shop-kits-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+
 
 .shop-card {
   --pcol: var(--info);
@@ -3382,130 +3509,7 @@ main {
   font-weight: 700;
 }
 
-/* ==========================================================================
-   Магазин v2: вкладки, слайдер, аккордеоны команд/китов, киты с фото
-   ========================================================================== */
+/* (стили Магазина v2 перенесены в v3 — см. выше) */
 
-/* Подвкладки «Привилегии» / «Киты» */
-.shop-tabs {
-  margin-top: 26px;
-  display: flex;
-  gap: 8px;
-  width: fit-content;
-  padding: 6px;
-  border-radius: 9999px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-}
-
-/* Аккордеоны команд/китов закрываются до конца */
-.shop-acc .acc-body-inner {
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* Список команд: команда + описание */
-.shop-cmds {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.shop-cmd {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 9px 12px;
-  border-radius: 10px;
-  background: var(--glass-bg-hover);
-  border: 1px solid var(--glass-border);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-
-.shop-cmd-code {
-  font-family: 'Consolas', 'Menlo', monospace;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  background: rgba(0, 0, 0, 0.25);
-  padding: 2px 8px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-
-.shop-cmd-desc { color: var(--muted); min-width: 0; }
-
-.shop-cmd .shop-from { margin-left: auto; }
-
-/* Название кита — кликабельная ссылка на его фото */
-.shop-kit-link {
-  cursor: pointer;
-  font-family: var(--font);
-  transition: border-color 0.2s, color 0.2s;
-}
-
-.shop-kit-link:hover { border-color: var(--info); color: var(--info); }
-
-.shop-kit-ico { font-size: 13px; }
-
-/* Вкладка «Киты» — фотки китов */
-.shop-kits-grid {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 18px;
-}
-
-.shop-kit-card {
-  padding: 16px;
-  text-align: center;
-  border-radius: 18px;
-  scroll-margin: 20px;
-}
-
-.shop-kit-photo {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 14px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-hover);
-}
-
-.shop-kit-photo-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.shop-kit-ico-big { font-size: 56px; color: var(--muted); }
-
-.shop-kit-name {
-  margin-top: 12px;
-  font-weight: 800;
-  font-size: 16px;
-}
-
-.shop-kit-desc {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.shop-kit-card.flash { animation: kitFlash 1.6s var(--ease); }
-
-@keyframes kitFlash {
-  0% { box-shadow: 0 0 0 4px var(--info); }
-  100% { box-shadow: 0 0 0 4px transparent; }
-}
-
-@media (max-width: 600px) {
-  .shop-slide-btn { display: none; }
-  .shop-slider-track .shop-card { flex-basis: 88vw; max-width: 88vw; }
-  .shop-tabs { width: 100%; justify-content: center; }
-}
 
 

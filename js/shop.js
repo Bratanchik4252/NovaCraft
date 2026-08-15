@@ -1,13 +1,13 @@
 /* ==========================================================================
-   shop.js — магазин привилегий и китов
-   Шаг 1: полоска выбора сервера (кастомный дропдаун, сворачивается в угол).
-   Шаг 2: подвкладки «Привилегии» (слайдер карточек-аккордеонов) и «Киты» (фото).
-   Каждая привилегия — аккордеон: клик по шапке открывает/закрывает карточку.
-   Внутри — аккордеоны «Команды» (команда + описание) и «Киты» (ссылки на фото).
-   Клик по названию кита переключает на вкладку «Киты» и подсвечивает его фото.
-   Старшинство: у вышестоящей привилегии автоматически есть команды и киты
-   всех нижестоящих (в админке их описывать заново не нужно).
-   Покупка: списание баланса + выдача происходят в БД (RPC purchase_privilege).
+   shop.js — магазин привилегий
+   Привилегии ГЛОБАЛЬНЫЕ (название, цена, цвет общие на все сервера).
+   Команды — СВОИ на каждом сервере (таблица privilege_commands),
+   киты — на сервер + привилегию (таблица kits), скидки — discounts.
+   Поток: выбор сервера → блоки привилегий → блок покупки (1/3/6/12 мес
+   или «навсегда» по price_forever, со скидкой) → команды полным списком
+   (команды привилегий выше по старшинству — под замком «Доступно от X»)
+   → киты. Все секции открыты всегда (без аккордеонов).
+   Покупка: списание баланса + выдача в БД (RPC purchase_privilege).
    ========================================================================== */
 
 'use strict';
@@ -17,46 +17,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Состояние ----------
   let servers = [];
-  let privileges = [];
-  let kits = [];                 // киты с фото (все серверы), из таблицы kits
-  let selected = null;           // выбранный сервер (имя)
-  let activeTab = 'privs';       // 'privs' | 'kits'
-  let serverKits = [];           // киты выбранного сервера (кэш рендера)
+  let privileges = [];    // глобальные
+  let kits = [];          // киты (сервер + привилегия)
+  let commandRows = [];   // privilege_commands: { privilege, server, cmd, desc }
+  let discounts = [];     // акции
+  let selected = null;    // выбранный сервер (имя)
+  let currentBuy = null;  // { priv, months, forever, total }
   const DURATIONS = [1, 3, 6, 12];
-  let currentBuy = null;         // { priv, months }
 
-  // ---------- Загрузка данных ----------
-  async function loadServers() {
-    if (cloud) {
-      try {
-        const rows = await DB.listServers();
-        if (Array.isArray(rows)) return rows;
-      } catch (e) {}
-      return [];
-    }
-    try { return JSON.parse(localStorage.getItem('mc:admin:servers') || '[]'); } catch (e) { return []; }
+  // ---------- Загрузка данных (облако / localStorage) ----------
+  function lsTable(key) {
+    try { return JSON.parse(localStorage.getItem('mc:admin:' + key) || '[]') || []; }
+    catch (e) { return []; }
   }
 
-  async function loadPrivileges() {
+  async function loadList(fn, key) {
     if (cloud) {
       try {
-        const rows = await DB.listPrivileges();
+        const rows = await fn();
         if (Array.isArray(rows)) return rows;
       } catch (e) {}
       return [];
     }
-    try { return JSON.parse(localStorage.getItem('mc:admin:privileges') || '[]'); } catch (e) { return []; }
-  }
-
-  async function loadKits() {
-    if (cloud) {
-      try {
-        const rows = await DB.listKits();
-        if (Array.isArray(rows)) return rows;
-      } catch (e) {}
-      return [];
-    }
-    try { return JSON.parse(localStorage.getItem('mc:admin:kits') || '[]'); } catch (e) { return []; }
+    return lsTable(key);
   }
 
   // ---------- Элементы ----------
@@ -68,11 +51,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const servermenu = document.getElementById('servermenu');
   const content = document.getElementById('shop-content');
   const hint = document.getElementById('shop-hint');
-  const tabs = document.getElementById('shop-tabs');
-  const grid = document.getElementById('shop-grid');
-  const kitsGrid = document.getElementById('shop-kits-grid');
-  const sliderPrev = document.getElementById('slider-prev');
-  const sliderNext = document.getElementById('slider-next');
+  const listHost = document.getElementById('shop-priv-list');
+
+  // Полоска баланса (создаётся один раз над списком)
+  const balHost = document.createElement('div');
+  balHost.id = 'shop-balance';
+  balHost.className = 'shop-balance';
+  content.insertBefore(balHost, content.firstChild);
 
   // ---------- Селектор сервера (кастомный, плавный) ----------
   function fmtOnline(s) {
@@ -102,13 +87,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function openMenu() {
-    renderServerMenu();
-    serverbar.classList.add('open');
-  }
-  function closeMenu() {
-    serverbar.classList.remove('open');
-  }
+  function openMenu() { renderServerMenu(); serverbar.classList.add('open'); }
+  function closeMenu() { serverbar.classList.remove('open'); }
 
   serverbtn.addEventListener('click', e => {
     e.stopPropagation();
@@ -130,41 +110,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ssbMeta.textContent = s.version ? 'Версия ' + s.version : '';
     stage.classList.add('is-selected');
     content.classList.add('active');
-    tabs.style.display = '';
-    activeTab = 'privs';
-    serverKits = kits
-      .filter(k => k.enabled !== false && String(k.server || '') === String(selected))
-      .sort((a, b) => (Number(a.sort) || 0) - (Number(b.sort) || 0)
-        || String(a.name || '').localeCompare(String(b.name || '')));
-    syncTabs();
     renderBalanceBar();
-    renderPrivileges();
-    renderKits();
+    renderList();
   }
-
-  // ---------- Подвкладки «Привилегии» / «Киты» ----------
-  function syncTabs() {
-    document.querySelectorAll('#shop-tabs .os-tab').forEach(b => {
-      b.classList.toggle('active', b.dataset.shoptab === activeTab);
-    });
-    const p = document.getElementById('shop-tab-privs');
-    const k = document.getElementById('shop-tab-kits');
-    if (p) { p.style.display = activeTab === 'privs' ? '' : 'none'; }
-    if (k) { k.style.display = activeTab === 'kits' ? '' : 'none'; }
-  }
-
-  function setShopTab(tab) {
-    if (activeTab === tab) return;
-    activeTab = tab;
-    syncTabs();
-    if (tab === 'kits') renderKits();
-    else renderPrivileges();
-  }
-
-  tabs.addEventListener('click', e => {
-    const b = e.target.closest('[data-shoptab]');
-    if (b) setShopTab(b.dataset.shoptab);
-  });
 
   // ---------- Баланс ----------
   function currentUser() {
@@ -172,14 +120,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderBalanceBar() {
+    if (!balHost) return;
     const user = currentUser();
-    const bar = document.getElementById('shop-balance');
-    if (!bar) return;
     if (!user) {
-      bar.innerHTML = '<div class="shop-balance-row"><span>Баланс:</span><a href="auth.html?redirect=shop.html" class="btn btn-sm">Войти, чтобы покупать</a></div>';
+      balHost.innerHTML = '<div class="shop-balance-row"><span>Баланс:</span><a href="auth.html?redirect=shop.html" class="btn btn-sm">Войти, чтобы покупать</a></div>';
       return;
     }
-    bar.innerHTML = '<div class="shop-balance-row"><span>Твой баланс:</span><b>' +
+    balHost.innerHTML = '<div class="shop-balance-row"><span>Твой баланс:</span><b>' +
       fmtRub(Number(user.balanceRub) || 0) + '</b>' +
       '<a href="topup.html" class="btn btn-sm">Пополнить</a></div>';
   }
@@ -188,240 +135,252 @@ document.addEventListener('DOMContentLoaded', async () => {
     return Number(n || 0).toLocaleString('ru-RU') + ' ₽';
   }
 
-  // ---------- Наследование команд/китов по старшинству ----------
-  // Собираем СВОИ команды/киты от низших к высшим: у «Дракона» автоматически
-  // есть всё из «VIP». Команды — объекты {cmd, desc}; киты — названия.
-  function effectivePriv(priv) {
-    const serverPrivs = privileges
-      .filter(p => p.enabled !== false && String(p.server || '') === String(selected))
+  // ---------- Скидки ----------
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // Процент скидки для привилегии (как privilege_discount в БД):
+  // max по активным акциям — глобальным и по этой привилегии.
+  function discountPct(privName) {
+    const t = todayStr();
+    let pct = 0;
+    (Array.isArray(discounts) ? discounts : []).forEach(d => {
+      if (d.enabled === false) return;
+      if (d.scope === 'privilege' && String(d.privilege || '') !== String(privName)) return;
+      if (d.starts_at && String(d.starts_at) > t) return;
+      if (d.ends_at && String(d.ends_at) < t) return;
+      const p = Number(d.percent) || 0;
+      if (p > pct) pct = p;
+    });
+    return pct;
+  }
+
+  // Цена с учётом скидки: { total (итог), base (без скидки), pct }
+  function priceFor(priv, months, forever) {
+    const pct = discountPct(priv.name);
+    const base = forever
+      ? (Number(priv.price_forever) || 0)
+      : ((Number(priv.price_rub) || 0) * months);
+    const total = Math.round(base * (100 - pct) / 100);
+    return { total, base, pct };
+  }
+
+  // ---------- Команды: свои на сервере + наследование по старшинству ----------
+  function sortedPrivs() {
+    return privileges
+      .filter(p => p.enabled !== false)
       .sort((a, b) => (Number(a.hierarchy) || 0) - (Number(b.hierarchy) || 0)
         || (Number(a.sort) || 0) - (Number(b.sort) || 0));
+  }
 
-    const seenCmd = new Set();
-    const seenKit = new Set();
-    const commands = [];
-    const kitNames = [];
-    const inheritedFrom = [];
+  // Собственные команды привилегии на выбранном сервере.
+  // Если таблица privilege_commands пуста — фолбэк на старый формат
+  // (команды лежали глобально в jsonb privileges.commands).
+  function cmdsForPriv(priv) {
+    const rows = commandRows.filter(c =>
+      String(c.privilege) === String(priv.name) && String(c.server) === String(selected));
+    if (rows.length) {
+      return rows
+        .map(c => ({ cmd: String(c.cmd || '').trim(), desc: String(c.desc || '').trim() }))
+        .filter(x => x.cmd);
+    }
+    const legacy = Array.isArray(priv.commands) ? priv.commands : [];
+    return legacy
+      .map(c => ({
+        cmd: (typeof c === 'string' ? c : (c && c.cmd) || '').trim(),
+        desc: (typeof c === 'string' || !c) ? '' : String(c.desc || '').trim(),
+      }))
+      .filter(x => x.cmd);
+  }
 
-    for (const p of serverPrivs) {
-      (Array.isArray(p.commands) ? p.commands : []).forEach(c => {
-        const cmd = (typeof c === 'string' ? c : (c && c.cmd) || '').trim();
-        const desc = (typeof c === 'string' || !c) ? '' : String(c.desc || '').trim();
-        if (!cmd || seenCmd.has(cmd.toLowerCase())) return;
-        seenCmd.add(cmd.toLowerCase());
-        commands.push({ cmd, desc, own: String(p.id) === String(priv.id), from: p.name });
-      });
-      (Array.isArray(p.kits) ? p.kits : []).forEach(k => {
-        const key = String(k).trim();
-        if (!key || seenKit.has(key.toLowerCase())) return;
-        seenKit.add(key.toLowerCase());
-        kitNames.push({ name: key, own: String(p.id) === String(priv.id), from: p.name });
-      });
-      if (String(p.id) !== String(priv.id) && Number(p.hierarchy) <= (Number(priv.hierarchy) || 0)) {
-        if (!inheritedFrom.includes(p.name)) inheritedFrom.push(p.name);
+  // { own: [{cmd, desc, from|null}], locked: [{cmd, desc, from}] }
+  // own — команды этой привилегии + всех нижестоящих (старшинство меньше);
+  // locked — команды привилегий выше по старшинству, под замком «Доступно от X».
+  function buildCommands(priv) {
+    const list = sortedPrivs();
+    const myHier = Number(priv.hierarchy) || 0;
+    const seen = new Set();
+    const lockedSeen = new Set();
+    const own = [];
+    const locked = [];
+    for (const p of list) {
+      const h = Number(p.hierarchy) || 0;
+      for (const c of cmdsForPriv(p)) {
+        const key = String(c.cmd).toLowerCase();
+        if (h <= myHier) {
+          if (seen.has(key)) continue;
+          seen.add(key);
+          own.push({ cmd: c.cmd, desc: c.desc, from: h < myHier ? p.name : null });
+        } else {
+          if (seen.has(key) || lockedSeen.has(key)) continue;
+          lockedSeen.add(key);
+          locked.push({ cmd: c.cmd, desc: c.desc, from: p.name });
+        }
       }
     }
-    return { commands, kits: kitNames, inheritedFrom };
+    return { own, locked };
   }
 
-  // Кит по названию для выбранного сервера (фото/описание из таблицы kits).
-  function kitByName(name) {
-    return serverKits.find(k => String(k.name).toLowerCase() === String(name || '').toLowerCase()) || null;
+  // ---------- Киты привилегии на выбранном сервере ----------
+  function kitsForPriv(priv) {
+    const own = kits.filter(k => k.enabled !== false
+      && String(k.server) === String(selected)
+      && String(k.privilege || '') === String(priv.name));
+    if (own.length) return own;
+    // легаси: привилегия ссылалась на киты по названию (tags)
+    const names = (Array.isArray(priv.kits) ? priv.kits : []).map(String);
+    return kits.filter(k => k.enabled !== false
+      && String(k.server) === String(selected)
+      && names.includes(String(k.name)));
   }
 
-  // ---------- Слайдер привилегий ----------
-  function scrollSlider(dir) {
-    const first = grid.querySelector('.shop-card');
-    const w = first ? first.offsetWidth + 18 : 320;
-    grid.scrollBy({ left: dir * w, behavior: 'smooth' });
-  }
-  sliderPrev.addEventListener('click', () => scrollSlider(-1));
-  sliderNext.addEventListener('click', () => scrollSlider(1));
-
-  // ---------- Карточки привилегий (слайдер-аккордеон) ----------
-  function renderPrivileges() {
-    hint.style.display = 'none';
-    const list = privileges
-      .filter(p => p.enabled !== false && String(p.server || '') === String(selected))
-      .sort((a, b) => (Number(a.hierarchy) || 0) - (Number(b.hierarchy) || 0)
-        || (Number(a.sort) || 0) - (Number(b.sort) || 0));
-
-    if (!list.length) {
-      grid.innerHTML = '<p class="text-muted" style="text-align:center;grid-column:1/-1">На этом сервере привилегии ещё не добавлены.</p>';
-      return;
-    }
-
-    grid.innerHTML = list.map((priv, i) => cardHtml(priv, i === 0)).join('');
-
-    // Открытие/закрытие карточки (аккордеон)
-    grid.querySelectorAll('.shop-card-toggle').forEach(btn => {
-      btn.addEventListener('click', () => btn.closest('.shop-card').classList.toggle('open'));
-    });
-
-    // Длительность + цена
-    grid.querySelectorAll('.shop-dur .os-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const card = btn.closest('.shop-card');
-        const dur = card.querySelector('.shop-dur');
-        dur.querySelectorAll('.os-tab').forEach(b => b.classList.toggle('active', b === btn));
-        const months = Number(btn.dataset.m);
-        const base = Number(card.dataset.price) || 0;
-        const total = base * months;
-        card.querySelector('.shop-price-num').textContent = fmtRub(total);
-        card.querySelector('.shop-price-note').textContent = 'за ' + months + (months === 12 ? ' мес (год)' : ' мес');
-        card.querySelector('.shop-buy-total').textContent = fmtRub(total);
-        card.dataset.months = months;
-      });
-    });
-
-    // Покупка
-    grid.querySelectorAll('.shop-buy').forEach(btn => {
-      btn.addEventListener('click', () => openBuyModal(btn.closest('.shop-card')));
-    });
-
-    // Аккордеоны команд/китов внутри карточки
-    grid.querySelectorAll('.shop-acc .acc-head').forEach(head => {
-      head.addEventListener('click', () => head.closest('.acc-item').classList.toggle('open'));
-    });
-
-    // Клик по названию кита → вкладка «Киты» с его фото
-    grid.querySelectorAll('.shop-kit-link').forEach(btn => {
-      btn.addEventListener('click', () => showKitPhoto(btn.dataset.kit));
-    });
-  }
-
+  // ---------- Владение ----------
   function ownedInfo(priv) {
     const user = currentUser();
     if (!user || !Array.isArray(user.privileges)) return null;
     const p = user.privileges.find(x => String(x.name) === String(priv.name)
-      && (String(x.server) === String(priv.server) || String(x.server) === '—'));
+      && (String(x.server) === String(selected) || x.server == null || String(x.server) === '—'));
     if (!p) return null;
     if (p.expiresAt == null) return { forever: true, label: 'Куплена навсегда' };
     if (Number(p.expiresAt) > Date.now()) {
       const d = new Date(Number(p.expiresAt)).toLocaleDateString('ru-RU');
-      return { forever: false, label: 'Действует до ' + d };
+      return { forever: false, label: 'До ' + d };
     }
     return null;
   }
 
-  function fromTag(it) {
-    return it.own ? '' : `<span class="shop-from">от ${MC.esc(it.from || '')}</span>`;
-  }
+  // ---------- Карточки привилегий ----------
+  function privHtml(priv) {
+    const color = priv.color || 'var(--info)';
+    const owned = ownedInfo(priv);
+    const eff = buildCommands(priv);
+    const klist = kitsForPriv(priv)
+      .sort((a, b) => (Number(a.sort) || 0) - (Number(b.sort) || 0)
+        || String(a.name || '').localeCompare(String(b.name || '')));
+    const pct = discountPct(priv.name);
+    const first = priceFor(priv, 1, false);
+    const foreverPrice = Number(priv.price_forever) || 0;
 
-  function commandsAccHtml(commands) {
-    if (!commands.length) return '';
-    const rows = commands.map(c => `
+    const cmdRows = eff.own.map(c => `
       <div class="shop-cmd">
         <code class="shop-cmd-code">${MC.esc(c.cmd)}</code>
         <span class="shop-cmd-desc">${c.desc ? MC.esc(c.desc) : ''}</span>
-        ${fromTag(c)}
+        ${c.from ? `<span class="shop-from">от ${MC.esc(c.from)}</span>` : ''}
       </div>`).join('');
+
+    const lockRows = eff.locked.map(c => `
+      <div class="shop-cmd locked">
+        <svg class="shop-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <code class="shop-cmd-code">${MC.esc(c.cmd)}</code>
+        <span class="shop-cmd-desc">${c.desc ? MC.esc(c.desc) : ''}</span>
+        <span class="shop-lock-note">Доступно от ${MC.esc(c.from)}</span>
+      </div>`).join('');
+
+    const cmdSection = (eff.own.length || eff.locked.length) ? `
+      <section class="shop-section">
+        <h3 class="shop-section-title">Команды</h3>
+        <div class="shop-cmds">${cmdRows}${lockRows}</div>
+      </section>` : '';
+
+    const kitCards = klist.map(k => `
+      <div class="shop-kit-card glass">
+        ${k.photo
+          ? `<img class="shop-kit-photo" src="${MC.esc(k.photo)}" alt="${MC.esc(k.name || '')}" loading="lazy">`
+          : `<div class="shop-kit-photo shop-kit-photo-empty"><span class="shop-kit-ico-big">&#128230;</span></div>`}
+        <div class="shop-kit-name">${MC.esc(k.name || '')}</div>
+        ${k.description ? `<div class="shop-kit-desc">${MC.esc(k.description)}</div>` : ''}
+      </div>`).join('');
+
+    const kitSection = klist.length ? `
+      <section class="shop-section">
+        <h3 class="shop-section-title">Киты</h3>
+        <div class="shop-kits-grid">${kitCards}</div>
+      </section>` : '';
+
+    const durHtml = DURATIONS.map(m =>
+      `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" data-forever="0" type="button">${m} мес${m === 12 ? ' (год)' : ''}</button>`
+    ).join('') +
+    `<button class="os-tab" data-m="0" data-forever="1" type="button">Навсегда${foreverPrice ? '' : ''}</button>`;
+
     return `
-      <div class="acc-item">
-        <button class="acc-head" type="button">
-          <span class="acc-num">/&gt;</span>
-          <span>Команды (${commands.length})</span>
-          <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="acc-body"><div class="acc-body-inner shop-cmds">${rows || '<span class="text-muted">Пусто</span>'}</div></div>
-      </div>`;
+  <article class="shop-card glass" data-id="${MC.esc(priv.id)}" data-months="1" data-forever="0" style="--pcol:${MC.esc(color)}">
+    <header class="shop-card-head">
+      <span class="shop-dot" style="background:${MC.esc(color)}"></span>
+      <div class="shop-card-title">
+        <div class="shop-pname" style="color:${MC.esc(color)}">${MC.esc(priv.name)}</div>
+        ${priv.description ? `<div class="shop-pdesc">${MC.esc(priv.description)}</div>` : ''}
+      </div>
+      ${owned ? `<span class="shop-owned">${MC.esc(owned.label)}</span>` : ''}
+    </header>
+
+    <div class="shop-buyblock">
+      <div class="shop-price-row">
+        <span class="shop-price-num" style="color:${MC.esc(color)}">${fmtRub(first.total)}</span>
+        <span class="shop-price-note">за 1 мес</span>
+        <span class="shop-price-old" style="${pct > 0 ? '' : 'display:none'}">${pct > 0 ? fmtRub(first.base) : ''}</span>
+        ${pct > 0 ? `<span class="shop-disc-badge">−${pct}%</span>` : ''}
+      </div>
+      <div class="seg shop-dur">${durHtml}</div>
+      <button class="btn btn-primary shop-buy" type="button" ${owned ? 'disabled' : ''}>
+        ${owned ? 'Куплена' : 'Купить за <span class="shop-buy-total">' + fmtRub(first.total) + '</span>'}
+      </button>
+    </div>
+
+    ${cmdSection}
+    ${kitSection}
+  </article>`;
   }
 
-  function kitsAccHtml(kits) {
-    if (!kits.length) return '';
-    const chips = kits.map(k => `
-      <button type="button" class="shop-chip shop-kit-link" data-kit="${MC.esc(k.name)}" title="Показать фото кита">
-        <span class="shop-kit-ico">&#128230;</span>${MC.esc(k.name)}${fromTag(k)}
-      </button>`).join('');
-    return `
-      <div class="acc-item">
-        <button class="acc-head" type="button">
-          <span class="acc-num">&#128230;</span>
-          <span>Киты (${kits.length})</span>
-          <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="acc-body"><div class="acc-body-inner shop-acc-inner">${chips || '<span class="text-muted">Пусто</span>'}</div></div>
-      </div>`;
+  function updateBuyBlock(card) {
+    const priv = privileges.find(p => String(p.id) === String(card.dataset.id));
+    if (!priv) return;
+    const forever = card.dataset.forever === '1';
+    const months = Number(card.dataset.months) || 1;
+    const { total, base, pct } = priceFor(priv, months, forever);
+    const num = card.querySelector('.shop-price-num');
+    const note = card.querySelector('.shop-price-note');
+    const oldEl = card.querySelector('.shop-price-old');
+    const buyTxt = card.querySelector('.shop-buy-total');
+    if (num) num.textContent = fmtRub(total);
+    if (note) note.textContent = forever ? 'навсегда' : ('за ' + months + (months === 12 ? ' мес (год)' : ' мес'));
+    if (oldEl) {
+      if (pct > 0) { oldEl.textContent = fmtRub(base); oldEl.style.display = ''; }
+      else { oldEl.textContent = ''; oldEl.style.display = 'none'; }
+    }
+    if (buyTxt) buyTxt.textContent = fmtRub(total);
   }
 
-  function cardHtml(priv, openFirst) {
-    const eff = effectivePriv(priv);
-    const base = Number(priv.price_rub) || 0;
-    const color = priv.color || 'var(--info)';
-    const owned = ownedInfo(priv);
-    const inheritNote = eff.inheritedFrom.length
-      ? `<div class="shop-inherit">Включает всё из привилегий ниже: ${eff.inheritedFrom.map(MC.esc).join(', ')}</div>`
-      : '';
+  function renderList() {
+    hint.style.display = 'none';
+    const list = privileges
+      .filter(p => p.enabled !== false)
+      .sort((a, b) => (Number(a.hierarchy) || 0) - (Number(b.hierarchy) || 0)
+        || (Number(a.sort) || 0) - (Number(b.sort) || 0));
 
-    return `
-      <article class="shop-card glass${openFirst ? ' open' : ''}" data-price="${base}" data-months="1"
-               data-id="${MC.esc(priv.id)}" style="--pcol:${MC.esc(color)}">
-        <div class="shop-card-head shop-card-toggle" role="button" tabindex="0">
-          <span class="shop-dot" style="background:${MC.esc(color)}"></span>
-          <div class="shop-card-title">
-            <div class="shop-pname" style="color:${MC.esc(color)}">${MC.esc(priv.name)}</div>
-            <div class="shop-pserver">${MC.esc(priv.server || '')}</div>
-          </div>
-          ${owned ? `<span class="shop-owned">${MC.esc(owned.label)}</span>` : ''}
-          <span class="shop-price-mini">${fmtRub(base)}/мес</span>
-          <svg class="shop-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </div>
-
-        <div class="shop-card-body"><div class="shop-card-body-inner">
-          ${priv.description ? `<p class="shop-pdesc">${MC.esc(priv.description)}</p>` : ''}
-          ${inheritNote}
-
-          <div class="shop-price">
-            <span class="shop-price-num" style="color:${MC.esc(color)}">${fmtRub(base)}</span>
-            <span class="shop-price-note">за 1 мес</span>
-          </div>
-
-          <div class="seg shop-dur">
-            ${DURATIONS.map(m => `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" type="button">${m} мес${m === 12 ? ' (год)' : ''}</button>`).join('')}
-          </div>
-
-          <button class="btn btn-primary shop-buy" type="button" ${owned ? 'disabled' : ''}>
-            ${owned ? 'Куплена' : 'Купить за <span class="shop-buy-total">' + fmtRub(base) + '</span>'}
-          </button>
-
-          <div class="shop-acc">
-            ${commandsAccHtml(eff.commands)}
-            ${kitsAccHtml(eff.kits)}
-          </div>
-        </div></div>
-      </article>`;
-  }
-
-  // ---------- Вкладка «Киты» (фото) ----------
-  function renderKits() {
-    if (!serverKits.length) {
-      kitsGrid.innerHTML = '<p class="text-muted" style="text-align:center;grid-column:1/-1">На этом сервере киты ещё не добавлены. Добавь их в админке (раздел «Киты»).</p>';
+    if (!list.length) {
+      listHost.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px 0">Привилегии ещё не добавлены. Загляни позже.</p>';
       return;
     }
-    kitsGrid.innerHTML = serverKits.map(k => {
-      const name = MC.esc(k.name || '');
-      const desc = MC.esc(k.description || '');
-      const photo = k.photo
-        ? `<img class="shop-kit-photo" src="${MC.esc(k.photo)}" alt="${name}" loading="lazy">`
-        : `<div class="shop-kit-photo shop-kit-photo-empty"><span class="shop-kit-ico-big">&#128230;</span></div>`;
-      return `
-        <div class="shop-kit-card glass" data-kit="${MC.esc(k.name || '')}">
-          ${photo}
-          <div class="shop-kit-name">${name}</div>
-          ${k.description ? `<div class="shop-kit-desc">${desc}</div>` : ''}
-        </div>`;
-    }).join('');
-  }
 
-  // Переход на вкладку «Киты» и подсветка конкретного кита
-  function showKitPhoto(name) {
-    setShopTab('kits');
-    const target = kitsGrid.querySelector('.shop-kit-card[data-kit="' + CSS.escape(String(name || '')) + '"]');
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.classList.add('flash');
-    clearTimeout(target._fl);
-    target._fl = setTimeout(() => target.classList.remove('flash'), 1600);
+    listHost.innerHTML = list.map(privHtml).join('');
+
+    listHost.querySelectorAll('.shop-card').forEach(card => {
+      const dur = card.querySelector('.shop-dur');
+      dur.querySelectorAll('.os-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          dur.querySelectorAll('.os-tab').forEach(b => b.classList.toggle('active', b === btn));
+          card.dataset.forever = btn.dataset.forever === '1' ? '1' : '0';
+          card.dataset.months = btn.dataset.forever === '1' ? 0 : (Number(btn.dataset.m) || 1);
+          updateBuyBlock(card);
+        });
+      });
+      card.querySelector('.shop-buy').addEventListener('click', () => openBuyModal(card));
+    });
   }
 
   // ---------- Покупка ----------
@@ -433,23 +392,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const priv = privileges.find(p => String(p.id) === String(card.dataset.id));
     if (!priv) return;
+    const forever = card.dataset.forever === '1';
     const months = Number(card.dataset.months) || 1;
-    const total = (Number(priv.price_rub) || 0) * months;
+    const { total, pct } = priceFor(priv, months, forever);
 
-    currentBuy = { priv, months, total, card };
+    currentBuy = { priv, months, forever, total };
+    const durText = forever ? 'навсегда' : ('на ' + months + (months === 12 ? ' мес (год)' : ' мес'));
     document.getElementById('buy-modal-text').textContent =
-      'Привилегия «' + priv.name + '» на сервере «' + priv.server + '» на ' +
-      months + (months === 12 ? ' мес (год)' : ' мес') + '.';
+      'Привилегия «' + priv.name + '» на сервере «' + selected + '» ' + durText + '.';
     document.getElementById('buy-modal-balance').textContent =
-      'Цена: ' + fmtRub(total) + ' · На балансе: ' + fmtRub(Number(user.balanceRub) || 0);
+      'Цена: ' + fmtRub(total) + (pct > 0 ? ' (скидка ' + pct + '%)' : '') +
+      ' · На балансе: ' + fmtRub(Number(user.balanceRub) || 0);
     document.getElementById('buy-modal').classList.add('open');
   }
 
   document.getElementById('buy-confirm').addEventListener('click', async () => {
     const b = document.getElementById('buy-modal');
     b.classList.remove('open');
-    if (!currentBuy) return;
-    await doBuy(currentBuy);
+    await doBuy();
   });
 
   document.getElementById('buy-cancel').addEventListener('click', () => {
@@ -457,7 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentBuy = null;
   });
   document.getElementById('buy-modal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+    if (e.target === e.currentTarget) { e.currentTarget.classList.remove('open'); currentBuy = null; }
   });
 
   document.getElementById('funds-cancel').addEventListener('click', () => {
@@ -473,22 +433,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('funds-modal').classList.add('open');
   }
 
-  async function doBuy({ priv, months, total }) {
+  async function doBuy() {
+    const b = currentBuy;
+    if (!b) return;
     const user = currentUser();
     if (!user) { location.href = 'auth.html?redirect=shop.html'; return; }
     const balance = Number(user.balanceRub) || 0;
-    if (balance < total) { showFundsModal(total, balance); return; }
+    if (balance < b.total) { showFundsModal(b.total, balance); return; }
 
     let res;
     if (cloud) {
-      res = await DB.purchasePrivilege(priv.id, months);
+      res = await DB.purchasePrivilege(b.priv.id, b.months, selected, b.forever);
     } else {
-      res = buyLocal(priv, months, total, user);
+      res = buyLocal(b, user);
     }
 
     if (!res.ok) {
       if (res.error && /Недостаточно|недостаточно/i.test(res.error)) {
-        showFundsModal(total, balance);
+        showFundsModal(b.total, balance);
       } else {
         alert(res.error || 'Ошибка покупки');
       }
@@ -498,18 +460,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (cloud) {
       const u = currentUser();
       if (u) {
-        u.balanceRub = Number(res.balance) || (Number(u.balanceRub) || 0) - total;
+        u.balanceRub = Number(res.balance) || ((Number(u.balanceRub) || 0) - b.total);
         if (!Array.isArray(u.privileges)) u.privileges = [];
         u.privileges.push({
-          name: priv.name,
-          server: priv.server,
+          name: b.priv.name,
+          server: selected,
           purchaseDate: new Date().toLocaleDateString('ru-RU'),
-          expiresAt: months > 0 ? Date.now() + months * 30 * 24 * 60 * 60 * 1000 : null,
+          expiresAt: b.forever ? null : Date.now() + b.months * 30 * 24 * 60 * 60 * 1000,
         });
         if (!Array.isArray(u.transactions)) u.transactions = [];
         u.transactions.unshift({
-          type: 'out', title: 'Покупка: ' + priv.name, server: priv.server,
-          amount: total, unit: 'rub', date: new Date().toLocaleDateString('ru-RU'),
+          type: 'out', title: 'Покупка: ' + b.priv.name, server: selected,
+          amount: b.total, unit: 'rub', date: new Date().toLocaleDateString('ru-RU'),
         });
         if (DB.saveLocalSession) DB.saveLocalSession(u);
       }
@@ -519,32 +481,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!cloud && window.Notif) {
       const u = currentUser();
       Notif.push(u ? u.id : null, 'spend', 'Покупка привилегии',
-        'Привилегия «' + priv.name + '» на сервере «' + priv.server + '» на ' + months + ' мес.', 'shop.html');
+        'Привилегия «' + b.priv.name + '» на сервере «' + selected + '»' +
+        (b.forever ? ' навсегда.' : ' на ' + b.months + ' мес.'), 'shop.html');
     }
 
-    showToast('Привилегия «' + priv.name + '» куплена!');
+    showToast('Привилегия «' + b.priv.name + '» куплена!');
     renderBalanceBar();
-    renderPrivileges();
+    renderList();
   }
 
   // Покупка без облака (localStorage): имитация в mc:auth
-  function buyLocal(priv, months, total, user) {
+  function buyLocal(b, user) {
     try {
       const data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
       const u = data.users.find(x => String(x.id) === String(user.id));
       if (!u) return { ok: false, error: 'Аккаунт не найден' };
-      if ((Number(u.balanceRub) || 0) < total) return { ok: false, error: 'Недостаточно средств' };
-      u.balanceRub = (Number(u.balanceRub) || 0) - total;
+      if ((Number(u.balanceRub) || 0) < b.total) return { ok: false, error: 'Недостаточно средств' };
+      u.balanceRub = (Number(u.balanceRub) || 0) - b.total;
       if (!Array.isArray(u.privileges)) u.privileges = [];
       u.privileges.push({
-        name: priv.name, server: priv.server,
+        name: b.priv.name, server: selected,
         purchaseDate: new Date().toLocaleDateString('ru-RU'),
-        expiresAt: months > 0 ? Date.now() + months * 30 * 24 * 60 * 60 * 1000 : null,
+        expiresAt: b.forever ? null : Date.now() + b.months * 30 * 24 * 60 * 60 * 1000,
       });
       if (!Array.isArray(u.transactions)) u.transactions = [];
       u.transactions.unshift({
-        type: 'out', title: 'Покупка: ' + priv.name, server: priv.server,
-        amount: total, unit: 'rub', date: new Date().toLocaleDateString('ru-RU'),
+        type: 'out', title: 'Покупка: ' + b.priv.name, server: selected,
+        amount: b.total, unit: 'rub', date: new Date().toLocaleDateString('ru-RU'),
       });
       localStorage.setItem('mc:auth', JSON.stringify(data));
       return { ok: true, balance: u.balanceRub };
@@ -567,18 +530,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast._t = setTimeout(() => toast.classList.remove('show'), 3200);
   }
 
+  // ---------- Перерисовка при смене аккаунта ----------
+  document.addEventListener('mc:auth-changed', () => {
+    renderBalanceBar();
+    if (selected) renderList();
+  });
+
   // ---------- Инициализация ----------
-  servers = await loadServers();
-  privileges = await loadPrivileges();
-  kits = await loadKits();
+  servers = await loadList(() => DB.listServers(), 'servers');
+  privileges = await loadList(() => DB.listPrivileges(), 'privileges');
+  kits = await loadList(() => DB.listKits(), 'kits');
+  commandRows = await loadList(() => DB.listPrivilegeCommands(), 'privilege_commands');
+  discounts = await loadList(() => DB.listDiscounts(), 'discounts');
+
   renderServerMenu();
   renderBalanceBar();
 
-  // Полоска баланса над сеткой привилегий
-  const balHost = document.createElement('div');
-  balHost.id = 'shop-balance';
-  balHost.className = 'shop-balance';
-  content.insertBefore(balHost, content.firstChild);
-
-  window.shopApp = { servers, privileges, kits, selectServer, showKitPhoto };
+  window.shopApp = { servers, privileges, kits, commandRows, discounts, selectServer };
 });

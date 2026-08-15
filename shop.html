@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Магазин — NOVACRAFT</title>
-  <meta name="description" content="Привилегии проекта NOVACRAFT: команды, киты и бонусы на каждом сервере.">
+  <meta name="description" content="Привилегии проекта NOVACRAFT: глобальные привилегии, команды и киты на каждом сервере.">
   <link rel="icon" href="img/favicon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
   <main class="page-content">
     <div class="page-hero anim-fade-up">
       <h1 class="text-glow">Магазин привилегий</h1>
-      <p>Выбери сервер, посмотри команды и киты каждой привилегии.</p>
+      <p>Привилегии у нас глобальные, а команды и киты — свои на каждом сервере.</p>
     </div>
 
     <div class="shop-stage anim-fade-up delay-1" id="shop-stage">
@@ -36,25 +36,11 @@
 
       <div class="shop-content" id="shop-content">
         <div class="shop-hint" id="shop-hint">
-          <p class="text-muted">Сначала выбери сервер — и мы покажем доступные привилегии.</p>
+          <p class="text-muted">Сначала выбери сервер — покажем привилегии, их команды и киты.</p>
         </div>
 
-        <div class="shop-tabs" id="shop-tabs" style="display:none">
-          <button class="os-tab active" data-shoptab="privs" type="button">Привилегии</button>
-          <button class="os-tab" data-shoptab="kits" type="button">Киты</button>
-        </div>
-
-        <div class="shop-tab-view" id="shop-tab-privs">
-          <div class="shop-slider" id="shop-slider">
-            <button class="shop-slide-btn" id="slider-prev" type="button" aria-label="Назад">‹</button>
-            <div class="shop-slider-track" id="shop-grid"></div>
-            <button class="shop-slide-btn" id="slider-next" type="button" aria-label="Вперёд">›</button>
-          </div>
-        </div>
-
-        <div class="shop-tab-view" id="shop-tab-kits" style="display:none">
-          <div class="shop-kits-grid" id="shop-kits-grid"></div>
-        </div>
+        <!-- Блоки привилегий: блок покупки перед командами, команды и киты открыты всегда -->
+        <div class="shop-priv-list" id="shop-priv-list"></div>
       </div>
     </div>
   </main>

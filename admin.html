@@ -35,6 +35,12 @@
     .pairlist-row { display: flex; gap: 8px; align-items: center; }
     .pairlist-row .pair-cmd { flex: 0 0 38%; font-family: 'Consolas', 'Menlo', monospace; }
     .pairlist-row .pair-desc { flex: 1; }
+    .cmd-server-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .cmd-server-tab {
+      padding: 6px 14px; border-radius: 999px; border: 1px solid var(--glass-border);
+      background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; cursor: pointer;
+    }
+    .cmd-server-tab.active { background: var(--glass-bg-hover); color: var(--text); box-shadow: var(--shadow); }
     @media (max-width: 760px) {
       .pairlist-row { flex-direction: column; align-items: stretch; }
       .pairlist-row .pair-cmd { flex: auto; }
@@ -68,6 +74,7 @@
         <div class="cab-tab" data-tab="rules" style="cursor:pointer">Правила</div>
         <div class="cab-tab" data-tab="prefixes" style="cursor:pointer">Префиксы</div>
         <div class="cab-tab" data-tab="kits" style="cursor:pointer">Киты</div>
+        <div class="cab-tab" data-tab="discounts" style="cursor:pointer">Скидки</div>
         <div class="cab-tab" data-tab="shop" style="cursor:pointer">Магазин</div>
       </aside>
 
@@ -231,9 +238,9 @@
         <div class="cab-panel" id="panel-kits">
           <h3>Киты</h3>
           <p class="text-muted">
-            Кит — это набор предметов с <b>фоткой</b>, привязанный к серверу. Привилегия ссылается
-            на кит по названию (поле «СВОИ киты»), а фото/описание подтягиваются отсюда.
-            В магазине клик по названию кита открывает его фото во вкладке «Киты».
+            Кит — это набор предметов с <b>фоткой</b>, привязанный к <b>серверу и привилегии</b>.
+            Киты у каждой привилегии на каждом сервере свои. В магазине они показываются в секции
+            «Киты» выбранной привилегии на выбранном сервере.
             Фото можно загрузить с диска (загружается в Supabase Storage) или вставить ссылку.
           </p>
           <div class="glass cab-card">
@@ -245,14 +252,35 @@
           </div>
         </div>
 
+        <!-- ============ СКИДКИ (акции) ============ -->
+        <div class="cab-panel" id="panel-discounts">
+          <h3>Скидки</h3>
+          <p class="text-muted">
+            Акции в процентах: <b>глобальная</b> (на все привилегии) или <b>на конкретную привилегию</b>.
+            Можно задать даты начала/конца акции (пусто = без ограничений). Если действует несколько
+            акций — берётся максимальный процент. Цена со скидкой считается автоматически и в магазине,
+            и при покупке.
+          </p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="discounts-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="discounts" type="button">+ Добавить скидку</button>
+            </div>
+            <div id="discounts-list"></div>
+          </div>
+        </div>
+
         <!-- ============ МАГАЗИН (привилегии) ============ -->
         <div class="cab-panel" id="panel-shop">
           <h3>Магазин</h3>
           <p class="text-muted">
             Привилегии магазина (shop.html) — настраиваются с уровня 2 (администратор).
             Настройки пополнения и баланс (деньги) — только с уровня 3 (создатель).
-            <b>Старшинство</b> — чем больше число, тем «топовее» привилегия: команды и киты нижестоящих
-            привилегий автоматически переносятся в вышестоящие, описывать их заново не нужно.
+            <b>Привилегия глобальная</b> (одна на все сервера): название, цена, цвет общие.
+            <b>Старшинство</b> — чем больше число, тем «топовее»: команды более топовых привилегий
+            в магазине показываются под замком «Доступно от X».
+            Команды у привилегии <b>свои на каждом сервере</b> (задаются в форме привилегии,
+            с выбором сервера), киты — в разделе «Киты» (сервер + привилегия).
           </p>
 
           <div class="glass cab-card">
@@ -466,38 +494,57 @@
         },
         kits: {
           label: 'Кит',
-          columns: [['photoThumb', 'Фото'], ['name', 'Название'], ['server', 'Сервер'], ['enabled', 'Вкл.']],
+          columns: [['photoThumb', 'Фото'], ['name', 'Название'], ['privilege', 'Привилегия'], ['server', 'Сервер'], ['enabled', 'Вкл.']],
           fields: [
-            { key: 'name', label: 'Название кита (по нему привилегия ссылается на кит)', type: 'text', required: true },
+            { key: 'name', label: 'Название кита', type: 'text', required: true },
             { key: 'server', label: 'Сервер', type: 'select', options: () => serversNames.map(n => [n, n]) },
+            { key: 'privilege', label: 'Привилегия', type: 'select', options: () => privilegesNames.map(n => [n, n]) },
             { key: 'photo', label: 'Фото кита', type: 'photo' },
             { key: 'description', label: 'Описание кита (необязательно)', type: 'textarea' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
             { key: 'enabled', label: 'Показывать в магазине', type: 'checkbox' },
           ],
         },
+        discounts: {
+          label: 'Скидка',
+          columns: [['scopeText', 'Тип'], ['privilege', 'Привилегия'], ['percentText', 'Скидка'], ['datesText', 'Даты'], ['enabled', 'Вкл.']],
+          fields: [
+            { key: 'scope', label: 'Тип скидки', type: 'select', options: [['global', 'Глобальная (на все привилегии)'], ['privilege', 'На конкретную привилегию']] },
+            { key: 'privilege', label: 'Привилегия (если тип «на привилегию»)', type: 'select', options: () => privilegesNames.map(n => [n, n]) },
+            { key: 'percent', label: 'Скидка, % (0–100)', type: 'number' },
+            { key: 'starts_at', label: 'Начало акции (ГГГГ-ММ-ДД, можно пусто)', type: 'text' },
+            { key: 'ends_at', label: 'Конец акции (ГГГГ-ММ-ДД, можно пусто)', type: 'text' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+            { key: 'enabled', label: 'Акция включена', type: 'checkbox' },
+          ],
+        },
         privileges: {
           label: 'Привилегия',
-          columns: [['name', 'Название'], ['server', 'Сервер'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['commandsCount', 'Команды'], ['kitsCount', 'Киты'], ['enabled', 'Продаётся']],
+          columns: [['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
           fields: [
-            { key: 'name', label: 'Название привилегии', type: 'text', required: true },
-            { key: 'server', label: 'Сервер', type: 'select', options: () => serversNames.map(n => [n, n]) },
-            { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды/киты нижестоящих переносятся автоматически)', type: 'number' },
+            { key: 'name', label: 'Название привилегии (глобальное, одинаковое на всех серверах)', type: 'text', required: true },
+            { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды более топовых привилегий в магазине под замком)', type: 'number' },
             { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
-            { key: 'color', label: 'Цвет карточки привилегии', type: 'color' },
+            { key: 'price_forever', label: 'Цена «навсегда» (рубли)', type: 'number' },
+            { key: 'color', label: 'Цвет блока привилегии', type: 'color' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
-            { key: 'commands', label: 'СВОИ команды (команда + описание)', type: 'pairs', hint: 'Пары «команда — описание». Пример: /fly — Позволяет летать. В магазине у каждой команды показывается описание.' },
-            { key: 'kits', label: 'СВОИ киты (названия китов из раздела «Киты», по одному в строке)', type: 'tags' },
+            { key: 'commands', label: 'Команды привилегии (свои на каждом сервере)', type: 'commands', hint: 'У привилегии свои команды на каждом сервере. Выбери сервер сверху и добавь пары «команда — описание».' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
             { key: 'enabled', label: 'Продаётся в магазине', type: 'checkbox' },
           ],
         },
       };
 
-      // Названия серверов — для выпадающего списка в форме привилегии
+      // Названия серверов — для выпадающих списков в формах
       let serversNames = [];
       loadRows('servers').then(rows => {
         serversNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
+      }).catch(() => {});
+
+      // Названия привилегий (глобальные) — для китов и скидок
+      let privilegesNames = [];
+      loadRows('privileges').then(rows => {
+        privilegesNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
       }).catch(() => {});
 
       const cloud = DB && DB.configured;
@@ -517,6 +564,8 @@
             team: DB.listTeam, rules: DB.listRules, prefixes: DB.listPrefixes,
             privileges: DB.listPrivileges,
             kits: DB.listKits,
+            privilege_commands: DB.listPrivilegeCommands,
+            discounts: DB.listDiscounts,
           }[table];
           if (list) {
             try {
@@ -572,6 +621,13 @@
             <button type="button" class="taglist-add" data-add="f-${f.key}"><span class="plus">+</span> Добавить</button>
             <div class="adm-tags-hint">${MC.esc(f.hint || 'Команда и её описание.')}</div></div>`;
         }
+        if (f.type === 'commands') {
+          return `<div class="field"><label>${MC.esc(f.label)}</label>
+            <div class="cmd-server-tabs" data-cmdservers="f-${f.key}"></div>
+            <div class="pairlist" data-pairlist="f-${f.key}"></div>
+            <button type="button" class="taglist-add" data-add="f-${f.key}"><span class="plus">+</span> Добавить команду</button>
+            <div class="adm-tags-hint">${MC.esc(f.hint || 'Команда и её описание.')}</div></div>`;
+        }
         if (f.type === 'photo') {
           return `<div class="field"><label>${MC.esc(f.label)}</label>
             <input type="file" id="f-${f.key}" class="adm-photo-file" accept="image/*">
@@ -602,6 +658,25 @@
       }
 
       let modalTable = null, modalRow = null;
+
+      // Поле «Команды» в форме привилегии: сервер -> [{cmd, desc}]
+      let commandData = {};
+      let activeCmdServer = null;
+
+      function readPairsFromDom(host) {
+        if (!host) return [];
+        return [...host.querySelectorAll('.pairlist-row')].map(r => {
+          const cmd = r.querySelector('.pair-cmd').value.trim();
+          const desc = r.querySelector('.pair-desc').value.trim();
+          return cmd ? { cmd, desc } : null;
+        }).filter(Boolean);
+      }
+
+      function renderCmdPairs(pairHost) {
+        const list = activeCmdServer && commandData[activeCmdServer] ? commandData[activeCmdServer] : [];
+        const items = list.length ? list : [null];
+        if (pairHost) pairHost.innerHTML = items.map(it => pairRowHtml(it ? it.cmd : '', it ? it.desc : '')).join('');
+      }
 
       function taglistRowHtml(value) {
         return `<div class="taglist-row">
@@ -636,12 +711,44 @@
             serversNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
           } catch (e) {}
         }
+        if (table === 'kits' && !privilegesNames.length) {
+          try {
+            const rows = await loadRows('privileges');
+            privilegesNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
+          } catch (e) {}
+        }
         modalTable = table;
         modalRow = row ? Object.assign({}, row) : {};
         document.getElementById('crud-title').textContent =
           (row ? 'Редактировать ' : 'Добавить ') + cfg.label.toLowerCase();
         document.getElementById('crud-form').innerHTML = cfg.fields.map(fieldHtml).join('');
         document.getElementById('crud-error').textContent = '';
+
+        // Поле «Команды»: загружаем команды привилегии по серверам (если есть)
+        commandData = {};
+        activeCmdServer = null;
+        if (cfg.fields.some(f => f.type === 'commands')) {
+          const name = row ? String(row.name || '') : '';
+          const all = await loadRows('privilege_commands');
+          (Array.isArray(all) ? all : []).forEach(c => {
+            if (String(c.privilege || '') !== name) return;
+            const s = String(c.server || '');
+            if (!commandData[s]) commandData[s] = [];
+            commandData[s].push({ cmd: c.cmd, desc: c.desc || '' });
+          });
+          // миграция старого формата: команды были глобальные (jsonb privileges.commands)
+          const legacy = row && Array.isArray(row.commands) ? row.commands : [];
+          if (legacy.length) {
+            const old = legacy.map(c => ({
+              cmd: (typeof c === 'string' ? c : (c && c.cmd) || '').trim(),
+              desc: typeof c === 'string' ? '' : ((c && c.desc) || ''),
+            })).filter(x => x.cmd);
+            serversNames.forEach(s => {
+              if (!commandData[s]) commandData[s] = [];
+              if (!commandData[s].length) commandData[s] = old.slice();
+            });
+          }
+        }
 
         cfg.fields.forEach(f => {
           if (f.type === 'tags') {
@@ -660,6 +767,17 @@
               const desc = it && typeof it === 'object' && !Array.isArray(it) ? (it.desc || '') : '';
               return pairRowHtml(cmd, desc);
             }).join('');
+            return;
+          }
+          if (f.type === 'commands') {
+            const tabsHost = document.querySelector('[data-cmdservers="f-' + f.key + '"]');
+            const pairHost = document.querySelector('[data-pairlist="f-' + f.key + '"]');
+            activeCmdServer = serversNames.length ? serversNames[0] : null;
+            if (tabsHost) {
+              tabsHost.innerHTML = serversNames.map((s, i) =>
+                `<button type="button" class="cmd-server-tab${i === 0 ? ' active' : ''}" data-server="${MC.esc(s)}">${MC.esc(s)}</button>`).join('');
+            }
+            renderCmdPairs(pairHost);
             return;
           }
           if (f.type === 'photo') {
@@ -693,6 +811,17 @@
 
       // Плюс/минус в списковых полях (делегирование на форму)
       document.getElementById('crud-form').addEventListener('click', e => {
+        const cmdTab = e.target.closest('.cmd-server-tab');
+        if (cmdTab) {
+          const tabHost = cmdTab.closest('[data-cmdservers]');
+          const key = tabHost ? String(tabHost.dataset.cmdservers || '').replace(/^f-/, '') : 'commands';
+          const pairHost = document.querySelector('[data-pairlist="f-' + key + '"]');
+          if (activeCmdServer) commandData[activeCmdServer] = readPairsFromDom(pairHost);
+          activeCmdServer = cmdTab.dataset.server;
+          document.querySelectorAll('.cmd-server-tab').forEach(b => b.classList.toggle('active', b === cmdTab));
+          renderCmdPairs(pairHost);
+          return;
+        }
         const addBtn = e.target.closest('[data-add]');
         if (addBtn) {
           const host = document.querySelector('[data-taglist="' + addBtn.dataset.add + '"]') ||
@@ -725,6 +854,7 @@
         const row = Object.assign({}, modalRow || {});
         let bad = null;
         let pendingUpload = null;
+        let pendingCmds = null;
         cfg.fields.forEach(f => {
           if (f.type === 'tags') {
             const v = [...document.querySelectorAll(`[data-taglist="f-${f.key}"] input`)]
@@ -743,6 +873,33 @@
               .filter(Boolean);
             if (f.required && !v.length) bad = 'Заполни поле «' + f.label + '»';
             row[f.key] = v;
+            return;
+          }
+          if (f.type === 'commands') {
+            const pairHost = document.querySelector('[data-pairlist="f-' + f.key + '"]');
+            if (activeCmdServer) commandData[activeCmdServer] = readPairsFromDom(pairHost);
+            const name = (document.getElementById('f-name') && document.getElementById('f-name').value.trim())
+              || (modalRow && modalRow.name) || '';
+            if (!name) { bad = 'Сначала укажи название привилегии'; return; }
+            if (cloud && DB.savePrivilegeCommands) {
+              pendingCmds = (pendingCmds || Promise.resolve()).then(async () => {
+                for (const srv of Object.keys(commandData)) {
+                  const res = await DB.savePrivilegeCommands(name, srv, commandData[srv]);
+                  if (!res.ok) throw new Error((res.error || 'Ошибка сохранения команд') + ' (' + srv + ')');
+                }
+              });
+            } else {
+              // localStorage-режим: храним в mc:admin:privilege_commands
+              let rows = [];
+              try { rows = JSON.parse(localStorage.getItem('mc:admin:privilege_commands') || '[]') || []; } catch (e2) {}
+              rows = rows.filter(r => String(r.privilege) !== String(name));
+              Object.keys(commandData).forEach(srv => {
+                (commandData[srv] || []).forEach((p, i) => {
+                  rows.push({ id: 'l_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), privilege: name, server: srv, cmd: p.cmd, desc: p.desc, sort: i });
+                });
+              });
+              try { localStorage.setItem('mc:admin:privilege_commands', JSON.stringify(rows)); } catch (e2) {}
+            }
             return;
           }
           if (f.type === 'photo') {
@@ -782,6 +939,10 @@
           try { await pendingUpload; }
           catch (e) { err.textContent = String((e && e.message) || e); return; }
         }
+        if (pendingCmds) {
+          try { await pendingCmds; }
+          catch (e) { err.textContent = String((e && e.message) || e); return; }
+        }
 
         const isEdit = !!row.id;
         const e = await saveRow(modalTable, row, isEdit);
@@ -818,6 +979,14 @@
         if (c === 'commandsCount') return Array.isArray(r.commands) ? r.commands.length + ' шт.' : '0 шт.';
         if (c === 'kitsCount') return Array.isArray(r.kits) ? r.kits.length + ' шт.' : '0 шт.';
         if (c === 'priceText') return Number(r.price_rub) ? Number(r.price_rub) + ' ₽' : '—';
+        if (c === 'priceForeverText') return Number(r.price_forever) ? Number(r.price_forever) + ' ₽' : '—';
+        if (c === 'scopeText') return r.scope === 'privilege' ? 'На привилегию' : 'Глобальная';
+        if (c === 'percentText') return r.percent != null ? r.percent + '%' : '—';
+        if (c === 'datesText') {
+          if (!r.starts_at && !r.ends_at) return 'Без дат';
+          const s = r.starts_at || '…', e = r.ends_at || '∞';
+          return String(s) + ' → ' + String(e);
+        }
         if (c === 'photoThumb') {
           return r.photo
             ? `<img class="adm-photo-thumb" src="${MC.esc(r.photo)}" alt="фото">`
@@ -867,7 +1036,7 @@
         });
       }
 
-      ['servers', 'bans', 'team', 'rules', 'prefixes', 'privileges', 'kits'].forEach(t => renderTable(t));
+      ['servers', 'bans', 'team', 'rules', 'prefixes', 'privileges', 'kits', 'discounts'].forEach(t => renderTable(t));
 
       // ============================================================
       // Тикеты (обращения)
