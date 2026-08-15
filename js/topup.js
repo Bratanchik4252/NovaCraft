@@ -159,6 +159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!u) { location.href = 'auth.html?redirect=topup.html'; return; }
     setStatus('Проверяем…');
 
+    // Сначала просим сервер опросить DonatePay (api/donatepay-pull) —
+    // тогда свежий донат начислится сразу, не дожидаясь крона.
+    if (cloud) {
+      try {
+        await fetch('/api/donatepay-pull', { method: 'POST' });
+      } catch (e) {}
+    }
+
     let rows = [];
     if (cloud && DB.listMyDonations) {
       rows = await DB.listMyDonations(u.id);

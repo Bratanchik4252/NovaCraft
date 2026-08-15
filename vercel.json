@@ -1,4 +1,7 @@
 {
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "crons": [
+    { "path": "/api/donatepay-pull", "schedule": "*/2 * * * *" }
+  ]
 }
