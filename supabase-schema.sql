@@ -514,7 +514,6 @@ create table if not exists public.privileges (
   enabled       boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
 );
 alter table public.privileges add column if not exists price_forever numeric not null default 0;
-alter table public.privileges add column if not exists photo text;   -- картинка квадрата в магазине (необязательно)
 drop index if exists privileges_server_idx;
 create index if not exists privileges_global_idx on public.privileges (hierarchy, sort);
 

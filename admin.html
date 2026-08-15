@@ -523,14 +523,13 @@
         },
         privileges: {
           label: 'Привилегия',
-          columns: [['photoThumb', 'Фото'], ['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
+          columns: [['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
           fields: [
             { key: 'name', label: 'Название привилегии (глобальное; набор фиксированный: VIP, PREMIUM, GRAND, DELUXE, LEGEND)', type: 'text', required: true },
             { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды более топовых привилегий в магазине под замком)', type: 'number' },
             { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
             { key: 'price_forever', label: 'Цена «навсегда» (рубли)', type: 'number' },
             { key: 'color', label: 'Цвет квадрата привилегии', type: 'color' },
-            { key: 'photo', label: 'Картинка квадрата (необязательно; если пусто — квадрат просто цветной)', type: 'photo' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
             { key: 'commands', label: 'Команды привилегии (свои на каждом сервере)', type: 'commands', hint: 'У привилегии свои команды на каждом сервере. Выбери сервер сверху и добавь пары «команда — описание».' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },

@@ -3064,14 +3064,14 @@ main {
 .shop-priv-squares {
   margin-top: 26px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 14px;
 }
 
 .shop-square {
   --pcol: var(--info);
   position: relative;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3100,18 +3100,9 @@ main {
   box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.35), var(--shadow);
 }
 
-.shop-square .sq-photo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.9;
-}
-
 .shop-square .sq-name {
   position: relative;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0.5px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
@@ -3120,7 +3111,7 @@ main {
 
 .shop-square .sq-price {
   position: relative;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
@@ -3247,10 +3238,10 @@ main {
   white-space: nowrap;
 }
 
-/* Киты привилегии на сервере */
+/* Киты привилегии на сервере — 2 фото на всю ширину */
 .shop-kits-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 
@@ -3263,7 +3254,7 @@ main {
 
 .shop-kit-photo {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 16 / 10;
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid var(--glass-border);
@@ -3284,10 +3275,6 @@ main {
 
 /* Скрываем остатки v2 */
 .shop-slider, .shop-slide-btn, .shop-tabs { display: none; }
-
-@media (max-width: 600px) {
-  .shop-kits-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-}
 
 
 .shop-card {

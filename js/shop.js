@@ -271,12 +271,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const name = MC.esc(priv.name || '');
       const base = Number(priv.price_rub) || 0;
       const active = String(priv.id) === String(selectedPrivId);
-      const img = priv.photo
-        ? `<img class="sq-photo" src="${MC.esc(priv.photo)}" alt="${name}" loading="lazy">`
-        : '';
       return `<button type="button" class="shop-square${active ? ' active' : ''}" data-id="${MC.esc(priv.id)}"
                 style="--pcol:${MC.esc(color)}">
-        ${img}
         <span class="sq-name" style="color:${MC.esc(color)}">${name}</span>
         <span class="sq-price">${base ? fmtRub(base) + '/мес' : ''}</span>
       </button>`;
