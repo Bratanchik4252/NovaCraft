@@ -3056,13 +3056,50 @@ main {
 
 .shop-balance-row .btn { margin-left: auto; }
 
-/* --- Сетка карточек привилегий --- */
-.shop-grid {
+/* --- Слайдер карточек привилегий --- */
+.shop-slider { position: relative; }
+
+.shop-slider-track {
   margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  display: flex;
   gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 4px 4px 18px;
+  scrollbar-width: thin;
 }
+
+.shop-slider-track .shop-card {
+  flex: 0 0 340px;
+  max-width: 340px;
+  scroll-snap-align: start;
+}
+
+.shop-slide-btn {
+  position: absolute;
+  top: 42%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: background 0.2s, color 0.2s;
+}
+
+.shop-slide-btn:hover { background: var(--glass-bg-hover); color: var(--info); }
+
+#slider-prev { left: -16px; }
+#slider-next { right: -16px; }
 
 .shop-card {
   --pcol: var(--info);
@@ -3089,6 +3126,54 @@ main {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Шапка карточки = кнопка аккордеона всей привилегии */
+.shop-card-toggle {
+  cursor: pointer;
+  margin: -22px -22px 0;
+  padding: 20px 22px;
+  border-radius: 18px 18px 0 0;
+  transition: background 0.2s var(--ease);
+  user-select: none;
+}
+
+.shop-card-toggle:hover { background: var(--glass-bg-hover); }
+
+.shop-card-toggle .shop-owned { margin-left: 0; }
+
+.shop-price-mini {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.shop-caret {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.25s var(--ease);
+}
+
+.shop-card.open .shop-caret { transform: rotate(180deg); }
+
+/* Тело карточки: плавно открывается/закрывается */
+.shop-card-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s var(--ease);
+}
+
+.shop-card.open .shop-card-body { grid-template-rows: 1fr; }
+
+.shop-card-body-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding-top: 18px;
 }
 
 .shop-dot {
@@ -3295,6 +3380,132 @@ main {
   margin-left: auto;
   font-size: 12px;
   font-weight: 700;
+}
+
+/* ==========================================================================
+   Магазин v2: вкладки, слайдер, аккордеоны команд/китов, киты с фото
+   ========================================================================== */
+
+/* Подвкладки «Привилегии» / «Киты» */
+.shop-tabs {
+  margin-top: 26px;
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px;
+  border-radius: 9999px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+/* Аккордеоны команд/китов закрываются до конца */
+.shop-acc .acc-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Список команд: команда + описание */
+.shop-cmds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-cmd {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--glass-bg-hover);
+  border: 1px solid var(--glass-border);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.shop-cmd-code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.shop-cmd-desc { color: var(--muted); min-width: 0; }
+
+.shop-cmd .shop-from { margin-left: auto; }
+
+/* Название кита — кликабельная ссылка на его фото */
+.shop-kit-link {
+  cursor: pointer;
+  font-family: var(--font);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.shop-kit-link:hover { border-color: var(--info); color: var(--info); }
+
+.shop-kit-ico { font-size: 13px; }
+
+/* Вкладка «Киты» — фотки китов */
+.shop-kits-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.shop-kit-card {
+  padding: 16px;
+  text-align: center;
+  border-radius: 18px;
+  scroll-margin: 20px;
+}
+
+.shop-kit-photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-hover);
+}
+
+.shop-kit-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-kit-ico-big { font-size: 56px; color: var(--muted); }
+
+.shop-kit-name {
+  margin-top: 12px;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.shop-kit-desc {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.shop-kit-card.flash { animation: kitFlash 1.6s var(--ease); }
+
+@keyframes kitFlash {
+  0% { box-shadow: 0 0 0 4px var(--info); }
+  100% { box-shadow: 0 0 0 4px transparent; }
+}
+
+@media (max-width: 600px) {
+  .shop-slide-btn { display: none; }
+  .shop-slider-track .shop-card { flex-basis: 88vw; max-width: 88vw; }
+  .shop-tabs { width: 100%; justify-content: center; }
 }
 
 

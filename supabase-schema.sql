@@ -817,3 +817,54 @@ create policy "site_config_admin_insert" on public.site_config
   for insert with check (is_staff());
 create policy "site_config_admin_update" on public.site_config
   for update using (is_staff());
+
+-- ==========================================================================
+-- Киты (магазин): отдельная сущность с фоткой, привязана к серверу.
+-- Привилегия ссылается на кит по названию (privileges.kits = ['VIP Kit', ...]),
+-- а фото/описание подтягивается по паре (server, name) из таблицы kits.
+-- ==========================================================================
+create table if not exists public.kits (
+  id          bigint generated always as identity primary key,
+  server      text not null default '',      -- сервер из таблицы servers
+  name        text not null,                 -- название кита (VIP Kit, Dragon Kit, ...)
+  photo       text not null default '',      -- URL/путь картинки (Supabase Storage или внешняя ссылка)
+  description text not null default '',      -- описание кита (необязательно)
+  sort        integer not null default 0,
+  enabled     boolean not null default true  -- 1 — показывать в магазине, 0 — скрыть
+);
+create index if not exists kits_server_idx on public.kits (server, sort, name);
+
+alter table public.kits enable row level security;
+
+drop policy if exists "kits_select" on public.kits;
+create policy "kits_select" on public.kits
+  for select using (true);
+drop policy if exists "kits_admin_insert" on public.kits;
+drop policy if exists "kits_admin_update" on public.kits;
+drop policy if exists "kits_admin_delete" on public.kits;
+create policy "kits_admin_insert" on public.kits
+  for insert with check (is_staff());
+create policy "kits_admin_update" on public.kits
+  for update using (is_staff());
+create policy "kits_admin_delete" on public.kits
+  for delete using (is_staff());
+
+-- ---------- Хранилище фоток китов (Supabase Storage) ----------
+-- Бакет создаётся идемпотентно. Анонимы читают, заливают/меняют/удаляют
+-- только сотрудники (is_staff, admin_level >= 2) — как и таблицы контента.
+insert into storage.buckets (id, name, public)
+values ('kit-images', 'kit-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "kit-images public read" on storage.objects;
+create policy "kit-images public read" on storage.objects
+  for select using (bucket_id = 'kit-images');
+drop policy if exists "kit-images staff insert" on storage.objects;
+create policy "kit-images staff insert" on storage.objects
+  for insert with check (bucket_id = 'kit-images' and public.is_staff());
+drop policy if exists "kit-images staff update" on storage.objects;
+create policy "kit-images staff update" on storage.objects
+  for update using (bucket_id = 'kit-images' and public.is_staff());
+drop policy if exists "kit-images staff delete" on storage.objects;
+create policy "kit-images staff delete" on storage.objects
+  for delete using (bucket_id = 'kit-images' and public.is_staff());

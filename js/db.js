@@ -689,6 +689,36 @@
       return (error || !data) ? [] : data;
     },
 
+    // Киты магазина (с фотками). Привилегии ссылаются на них по названию,
+    // фото/описание ищется по паре (server, name).
+    async listKits() {
+      if (!this.configured) return null;
+      const { data, error } = await client
+        .from('kits')
+        .select('*')
+        .order('sort', { ascending: true })
+        .order('name', { ascending: true });
+      return (error || !data) ? [] : data;
+    },
+
+    // Загрузка фото кита в Supabase Storage (бакет kit-images).
+    // Имя файла уникализируется (префикс + время + случайные символы).
+    // Возвращает { ok, url, path } или { ok:false, error }.
+    async uploadKitImage(file, name) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const base = String(name || 'kit').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase() || 'kit';
+      const ext = String((file && file.name) || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+      const path = base + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+      const { error } = await client.storage.from('kit-images').upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type || 'image/png',
+        upsert: false,
+      });
+      if (error) return { ok: false, error: error.message };
+      const { data: pub } = client.storage.from('kit-images').getPublicUrl(path);
+      return { ok: true, url: pub ? pub.publicUrl : null, path };
+    },
+
     // ---------------- ПОПОЛНЕНИЕ БАЛАНСА (DonatePay) ----------------
     // Публичные настройки: страница донатов, флаг тестовых платежей.
     async getSiteConfig() {

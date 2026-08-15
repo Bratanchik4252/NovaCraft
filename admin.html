@@ -28,7 +28,17 @@
     .adm-color-cell { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: middle; margin-right: 6px; box-shadow: 0 0 0 1px rgba(0,0,0,0.3); }
     .badge-ok { color: var(--success); }
     .badge-off { color: var(--muted); }
+    .adm-photo-thumb { width: 46px; height: 46px; object-fit: cover; border-radius: 8px; border: 1px solid var(--glass-border); }
+    .adm-photo-preview { margin-top: 8px; max-width: 140px; max-height: 110px; object-fit: cover; border-radius: 10px; border: 1px solid var(--glass-border); display: none; }
+    .adm-photo-file { padding: 8px; border: 1px dashed var(--glass-border); border-radius: 10px; width: 100%; }
+    .pairlist { display: flex; flex-direction: column; gap: 8px; }
+    .pairlist-row { display: flex; gap: 8px; align-items: center; }
+    .pairlist-row .pair-cmd { flex: 0 0 38%; font-family: 'Consolas', 'Menlo', monospace; }
+    .pairlist-row .pair-desc { flex: 1; }
     @media (max-width: 760px) {
+      .pairlist-row { flex-direction: column; align-items: stretch; }
+      .pairlist-row .pair-cmd { flex: auto; }
+    }
       .adm-forms-grid, .adm-ticket-layout { grid-template-columns: 1fr; }
     }
   </style>
@@ -57,6 +67,7 @@
         <div class="cab-tab" data-tab="team" style="cursor:pointer">Команда</div>
         <div class="cab-tab" data-tab="rules" style="cursor:pointer">Правила</div>
         <div class="cab-tab" data-tab="prefixes" style="cursor:pointer">Префиксы</div>
+        <div class="cab-tab" data-tab="kits" style="cursor:pointer">Киты</div>
         <div class="cab-tab" data-tab="shop" style="cursor:pointer">Магазин</div>
       </aside>
 
@@ -213,6 +224,24 @@
               </div>
               <span class="error-msg" id="pfx-set-status" style="display:block;margin-top:10px"></span>
             </div>
+          </div>
+        </div>
+
+        <!-- ============ КИТЫ (фотки китов магазина) ============ -->
+        <div class="cab-panel" id="panel-kits">
+          <h3>Киты</h3>
+          <p class="text-muted">
+            Кит — это набор предметов с <b>фоткой</b>, привязанный к серверу. Привилегия ссылается
+            на кит по названию (поле «СВОИ киты»), а фото/описание подтягиваются отсюда.
+            В магазине клик по названию кита открывает его фото во вкладке «Киты».
+            Фото можно загрузить с диска (загружается в Supabase Storage) или вставить ссылку.
+          </p>
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="kits-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="kits" type="button">+ Добавить кита</button>
+            </div>
+            <div id="kits-list"></div>
           </div>
         </div>
 
@@ -435,6 +464,18 @@
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
           ],
         },
+        kits: {
+          label: 'Кит',
+          columns: [['photoThumb', 'Фото'], ['name', 'Название'], ['server', 'Сервер'], ['enabled', 'Вкл.']],
+          fields: [
+            { key: 'name', label: 'Название кита (по нему привилегия ссылается на кит)', type: 'text', required: true },
+            { key: 'server', label: 'Сервер', type: 'select', options: () => serversNames.map(n => [n, n]) },
+            { key: 'photo', label: 'Фото кита', type: 'photo' },
+            { key: 'description', label: 'Описание кита (необязательно)', type: 'textarea' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+            { key: 'enabled', label: 'Показывать в магазине', type: 'checkbox' },
+          ],
+        },
         privileges: {
           label: 'Привилегия',
           columns: [['name', 'Название'], ['server', 'Сервер'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['commandsCount', 'Команды'], ['kitsCount', 'Киты'], ['enabled', 'Продаётся']],
@@ -445,8 +486,8 @@
             { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
             { key: 'color', label: 'Цвет карточки привилегии', type: 'color' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
-            { key: 'commands', label: 'СВОИ команды (по одной в строке, напр. /fly)', type: 'tags' },
-            { key: 'kits', label: 'СВОИ киты (по одному в строке)', type: 'tags' },
+            { key: 'commands', label: 'СВОИ команды (команда + описание)', type: 'pairs', hint: 'Пары «команда — описание». Пример: /fly — Позволяет летать. В магазине у каждой команды показывается описание.' },
+            { key: 'kits', label: 'СВОИ киты (названия китов из раздела «Киты», по одному в строке)', type: 'tags' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
             { key: 'enabled', label: 'Продаётся в магазине', type: 'checkbox' },
           ],
@@ -475,6 +516,7 @@
             servers: DB.listServers, bans: DB.listBans,
             team: DB.listTeam, rules: DB.listRules, prefixes: DB.listPrefixes,
             privileges: DB.listPrivileges,
+            kits: DB.listKits,
           }[table];
           if (list) {
             try {
@@ -524,6 +566,19 @@
             <div class="taglist" data-taglist="f-${f.key}"></div>
             <button type="button" class="taglist-add" data-add="f-${f.key}"><span class="plus">+</span> Добавить</button></div>`;
         }
+        if (f.type === 'pairs') {
+          return `<div class="field"><label>${MC.esc(f.label)}</label>
+            <div class="pairlist" data-pairlist="f-${f.key}"></div>
+            <button type="button" class="taglist-add" data-add="f-${f.key}"><span class="plus">+</span> Добавить</button>
+            <div class="adm-tags-hint">${MC.esc(f.hint || 'Команда и её описание.')}</div></div>`;
+        }
+        if (f.type === 'photo') {
+          return `<div class="field"><label>${MC.esc(f.label)}</label>
+            <input type="file" id="f-${f.key}" class="adm-photo-file" accept="image/*">
+            <div class="adm-tags-hint" style="margin:6px 0 4px">или вставь ссылку на картинку:</div>
+            <input type="text" id="f-${f.key}-url" placeholder="https://...">
+            <img id="f-${f.key}-preview" class="adm-photo-preview" alt="фото"></div>`;
+        }
         if (f.type === 'textarea') {
           return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
             <textarea id="f-${f.key}" rows="3" placeholder="${MC.esc(f.placeholder || '')}"></textarea></div>`;
@@ -554,11 +609,28 @@
           <input type="text" value="${MC.esc(value || '')}"></div>`;
       }
 
+      function pairRowHtml(cmd, desc) {
+        return `<div class="pairlist-row">
+          <button type="button" class="taglist-minus" title="Удалить">−</button>
+          <input type="text" class="pair-cmd" placeholder="/команда" value="${MC.esc(cmd || '')}">
+          <input type="text" class="pair-desc" placeholder="Что делает команда" value="${MC.esc(desc || '')}">
+        </div>`;
+      }
+
+      function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = () => reject(fr.error || new Error('Не удалось прочитать файл'));
+          fr.readAsDataURL(file);
+        });
+      }
+
       async function openForm(table, row) {
         const cfg = TABLES[table];
-        // Форме привилегии нужен список серверов — дозагружаем, если ещё пуст
+        // Форме привилегии/кита нужен список серверов — дозагружаем, если ещё пуст
         // (иначе пустой массив ломал открытие модалки).
-        if (table === 'privileges' && !serversNames.length) {
+        if ((table === 'privileges' || table === 'kits') && !serversNames.length) {
           try {
             const rows = await loadRows('servers');
             serversNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
@@ -576,6 +648,26 @@
             const host = document.querySelector('[data-taglist="f-' + f.key + '"]');
             const arr = Array.isArray(row ? row[f.key] : '') ? row[f.key] : (row && row[f.key] ? [row[f.key]] : ['']);
             if (host) host.innerHTML = arr.map(taglistRowHtml).join('');
+            return;
+          }
+          if (f.type === 'pairs') {
+            const host = document.querySelector('[data-pairlist="f-' + f.key + '"]');
+            const raw = row ? row[f.key] : [];
+            const arr = Array.isArray(raw) ? raw : [];
+            const items = arr.length ? arr : [null];
+            if (host) host.innerHTML = items.map(it => {
+              const cmd = typeof it === 'string' ? it : (it && it.cmd) || '';
+              const desc = it && typeof it === 'object' && !Array.isArray(it) ? (it.desc || '') : '';
+              return pairRowHtml(cmd, desc);
+            }).join('');
+            return;
+          }
+          if (f.type === 'photo') {
+            const urlEl = document.getElementById('f-' + f.key + '-url');
+            const prev = document.getElementById('f-' + f.key + '-preview');
+            const v = row ? row[f.key] : '';
+            if (urlEl) urlEl.value = v || '';
+            if (prev) { if (v) { prev.src = v; prev.style.display = ''; } else prev.style.display = 'none'; }
             return;
           }
           const el = document.getElementById('f-' + f.key);
@@ -603,15 +695,27 @@
       document.getElementById('crud-form').addEventListener('click', e => {
         const addBtn = e.target.closest('[data-add]');
         if (addBtn) {
-          const host = document.querySelector('[data-taglist="' + addBtn.dataset.add + '"]');
-          if (host) host.insertAdjacentHTML('beforeend', taglistRowHtml(''));
+          const host = document.querySelector('[data-taglist="' + addBtn.dataset.add + '"]') ||
+                       document.querySelector('[data-pairlist="' + addBtn.dataset.add + '"]');
+          const isPair = host && host.matches('[data-pairlist]');
+          if (host) host.insertAdjacentHTML('beforeend', isPair ? pairRowHtml('', '') : taglistRowHtml(''));
           return;
         }
         const minus = e.target.closest('.taglist-minus');
         if (minus) {
-          const row = minus.closest('.taglist-row');
-          row.parentNode.removeChild(row);
+          const row = minus.closest('.taglist-row, .pairlist-row');
+          if (row) row.parentNode.removeChild(row);
         }
+      });
+
+      // Живой предпросмотр выбранного фото
+      document.getElementById('crud-form').addEventListener('change', e => {
+        const fileEl = e.target;
+        if (!fileEl || fileEl.type !== 'file' || !fileEl.files || !fileEl.files[0]) return;
+        const prev = fileEl.id ? document.getElementById(fileEl.id + '-preview') : null;
+        if (!prev) return;
+        prev.src = URL.createObjectURL(fileEl.files[0]);
+        prev.style.display = '';
       });
 
       document.getElementById('crud-save').addEventListener('click', async () => {
@@ -620,12 +724,48 @@
         const err = document.getElementById('crud-error');
         const row = Object.assign({}, modalRow || {});
         let bad = null;
+        let pendingUpload = null;
         cfg.fields.forEach(f => {
           if (f.type === 'tags') {
             const v = [...document.querySelectorAll(`[data-taglist="f-${f.key}"] input`)]
               .map(i => i.value.trim()).filter(Boolean);
             if (f.required && !v.length) bad = 'Заполни поле «' + f.label + '»';
             row[f.key] = v;
+            return;
+          }
+          if (f.type === 'pairs') {
+            const v = [...document.querySelectorAll(`[data-pairlist="f-${f.key}"] .pairlist-row`)]
+              .map(r => {
+                const cmd = r.querySelector('.pair-cmd').value.trim();
+                const desc = r.querySelector('.pair-desc').value.trim();
+                return cmd ? { cmd, desc } : null;
+              })
+              .filter(Boolean);
+            if (f.required && !v.length) bad = 'Заполни поле «' + f.label + '»';
+            row[f.key] = v;
+            return;
+          }
+          if (f.type === 'photo') {
+            const fileEl = document.getElementById('f-' + f.key);
+            const urlEl = document.getElementById('f-' + f.key + '-url');
+            const file = fileEl && fileEl.files && fileEl.files[0];
+            if (file) {
+              pendingUpload = (pendingUpload || Promise.resolve()).then(async () => {
+                let url = null;
+                if (cloud && DB.uploadKitImage) {
+                  const up = await DB.uploadKitImage(file, (modalRow && modalRow.name) || cfg.label);
+                  if (!up.ok) throw new Error(up.error || 'Ошибка загрузки фото');
+                  url = up.url;
+                } else {
+                  url = await readFileAsDataURL(file);
+                }
+                row[f.key] = url;
+              });
+            } else if (urlEl && urlEl.value.trim()) {
+              row[f.key] = urlEl.value.trim();
+            } else {
+              row[f.key] = (modalRow && modalRow[f.key]) || '';
+            }
             return;
           }
           const el = document.getElementById('f-' + f.key);
@@ -638,6 +778,10 @@
           row[f.key] = v;
         });
         if (bad) { err.textContent = bad; return; }
+        if (pendingUpload) {
+          try { await pendingUpload; }
+          catch (e) { err.textContent = String((e && e.message) || e); return; }
+        }
 
         const isEdit = !!row.id;
         const e = await saveRow(modalTable, row, isEdit);
@@ -674,6 +818,12 @@
         if (c === 'commandsCount') return Array.isArray(r.commands) ? r.commands.length + ' шт.' : '0 шт.';
         if (c === 'kitsCount') return Array.isArray(r.kits) ? r.kits.length + ' шт.' : '0 шт.';
         if (c === 'priceText') return Number(r.price_rub) ? Number(r.price_rub) + ' ₽' : '—';
+        if (c === 'photoThumb') {
+          return r.photo
+            ? `<img class="adm-photo-thumb" src="${MC.esc(r.photo)}" alt="фото">`
+            : '—';
+        }
+        if (c === 'enabled') return r.enabled !== false ? '<span class="badge-ok">да</span>' : '<span class="badge-off">нет</span>';
         const v = r[c];
         return v == null || v === '' ? '—' : String(v);
       }
@@ -717,7 +867,7 @@
         });
       }
 
-      ['servers', 'bans', 'team', 'rules', 'prefixes', 'privileges'].forEach(t => renderTable(t));
+      ['servers', 'bans', 'team', 'rules', 'prefixes', 'privileges', 'kits'].forEach(t => renderTable(t));
 
       // ============================================================
       // Тикеты (обращения)

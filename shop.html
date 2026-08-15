@@ -38,7 +38,23 @@
         <div class="shop-hint" id="shop-hint">
           <p class="text-muted">Сначала выбери сервер — и мы покажем доступные привилегии.</p>
         </div>
-        <div class="shop-grid" id="shop-grid"></div>
+
+        <div class="shop-tabs" id="shop-tabs" style="display:none">
+          <button class="os-tab active" data-shoptab="privs" type="button">Привилегии</button>
+          <button class="os-tab" data-shoptab="kits" type="button">Киты</button>
+        </div>
+
+        <div class="shop-tab-view" id="shop-tab-privs">
+          <div class="shop-slider" id="shop-slider">
+            <button class="shop-slide-btn" id="slider-prev" type="button" aria-label="Назад">‹</button>
+            <div class="shop-slider-track" id="shop-grid"></div>
+            <button class="shop-slide-btn" id="slider-next" type="button" aria-label="Вперёд">›</button>
+          </div>
+        </div>
+
+        <div class="shop-tab-view" id="shop-tab-kits" style="display:none">
+          <div class="shop-kits-grid" id="shop-kits-grid"></div>
+        </div>
       </div>
     </div>
   </main>
