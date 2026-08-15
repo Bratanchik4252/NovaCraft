@@ -49,10 +49,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const demoEnabled = config.demo_payments === '1';
   demoBtn.style.display = demoEnabled ? '' : 'none';
 
-  const donateNick = (config.donatepay_nick || '').trim();
-  if (!donateNick) {
+  // База для ссылки на DonatePay: полная ссылка из настроек (site_config.donatepay_url),
+  // например https://donatepay.eu/don/49274. Фолбэк — старый ключ donatepay_nick.
+  const donateUrl = (config.donatepay_url || '').trim();
+  const donateBase = donateUrl
+    || ('https://donatepay.ru/don/' + ((config.donatepay_nick || '').trim()));
+  if (!donateBase || donateBase === 'https://donatepay.ru/don/') {
     donateBtn.disabled = true;
-    donateBtn.title = 'Страница донатов ещё не настроена (site_config.donatepay_nick)';
+    donateBtn.title = 'Страница донатов ещё не настроена (site_config.donatepay_url)';
   }
 
   function renderBalance() {
@@ -106,9 +110,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     codeBox.style.display = '';
     setStatus('');
 
-    // Открываем страницу доната DonatePay
-    const base = 'https://donatepay.ru/don/' + encodeURIComponent(donateNick);
-    const link = base + '?amount=' + sum + '&message=' + encodeURIComponent(code);
+    // Открываем страницу доната DonatePay.
+    // Сумма и код подставляются параметрами — плательщик просто вводит карту
+    // и платит (код в сообщении уже заполнен). Если DonatePay не подхватит
+    // ?message — игрок впишет код вручную (поле «Сообщение» на странице доната).
+    const link = donateBase + '?amount=' + sum + '&message=' + encodeURIComponent(code);
     window.open(link, '_blank', 'noopener');
   });
 

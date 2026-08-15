@@ -220,7 +220,8 @@
         <div class="cab-panel" id="panel-shop">
           <h3>Магазин</h3>
           <p class="text-muted">
-            Привилегии магазина (shop.html) и пополнение баланса. Настраивается с уровня 2 (администратор).
+            Привилегии магазина (shop.html) — настраиваются с уровня 2 (администратор).
+            Настройки пополнения и баланс (деньги) — только с уровня 3 (создатель).
             <b>Старшинство</b> — чем больше число, тем «топовее» привилегия: команды и киты нижестоящих
             привилегий автоматически переносятся в вышестоящие, описывать их заново не нужно.
           </p>
@@ -233,15 +234,15 @@
             <div id="privileges-list"></div>
           </div>
 
-          <div class="glass cab-card">
+          <div class="glass cab-card" id="shop-cfg-card" style="display:none">
             <h4>Настройки пополнения (DonatePay)</h4>
             <p class="text-muted" style="font-size:13px;margin-bottom:14px">
-              Ник страницы донатов — используется в ссылке на DonatePay. «Тестовый платёж» — кнопка
-              демо-начисления на topup.html (перед релизом выключить).
+              Полная ссылка на твою страницу донатов (берётся из настроек DonatePay). «Тестовый платёж» —
+              кнопка демо-начисления на topup.html (перед релизом выключить). Доступно только создателю (3 уровень).
             </p>
             <div class="field">
-              <label for="cfg-donatepay-nick">Ник страницы донатов DonatePay</label>
-              <input id="cfg-donatepay-nick" placeholder="например: myproject">
+              <label for="cfg-donatepay-url">Ссылка на страницу донатов DonatePay</label>
+              <input id="cfg-donatepay-url" placeholder="https://donatepay.eu/don/49274">
             </div>
             <div class="field" style="margin-top:12px">
               <label for="cfg-demo-payments">Тестовый платёж (демо-начисление баланса)</label>
@@ -254,10 +255,11 @@
             <span class="error-msg" id="cfg-status" style="display:block;margin-top:10px"></span>
           </div>
 
-          <div class="glass cab-card">
+          <div class="glass cab-card" id="shop-bal-card" style="display:none">
             <h4>Баланс игрока</h4>
             <p class="text-muted" style="font-size:13px;margin-bottom:14px">
-              Начислить или списать рубли (для возвратов и тестов). Изменение записывается в историю игрока.
+              Начислить или списать рубли (для возвратов и тестов). Доступно только создателю (3 уровень).
+              Изменение записывается в историю игрока.
             </p>
             <div class="field">
               <label for="bal-query">Ник игрока</label>
@@ -342,6 +344,14 @@
       tabs.forEach(tab => {
         if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
       });
+
+      // Деньги (настройки DonatePay + корректировка баланса) — только создатель (3 уровень)
+      if (!isCreator) {
+        ['shop-cfg-card', 'shop-bal-card'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+      }
       tabs.forEach(t => t.addEventListener('click', () => {
         tabs.forEach(x => x.classList.toggle('active', x === t));
         panel.querySelectorAll('.cab-panel').forEach(p => {
@@ -959,29 +969,29 @@
       // Магазин: настройки пополнения (site_config)
       // ============================================================
       function loadShopConfig() {
-        const nick = document.getElementById('cfg-donatepay-nick');
+        const url = document.getElementById('cfg-donatepay-url');
         const demo = document.getElementById('cfg-demo-payments');
-        if (!nick || !demo) return;
+        if (!url || !demo) return;
         if (cloud && DB.getSiteConfig) {
           DB.getSiteConfig().then(cfg => {
-            nick.value = cfg.donatepay_nick || '';
+            url.value = cfg.donatepay_url || '';
             demo.value = cfg.demo_payments === '1' ? '1' : '0';
           }).catch(() => {});
         } else {
           try {
             const cfg = JSON.parse(localStorage.getItem('mc:site-config') || '{}');
-            nick.value = cfg.donatepay_nick || '';
+            url.value = cfg.donatepay_url || '';
             demo.value = cfg.demo_payments === '1' ? '1' : '0';
           } catch (e) {}
         }
       }
 
       document.getElementById('cfg-save')?.addEventListener('click', async () => {
-        const nick = document.getElementById('cfg-donatepay-nick');
+        const url = document.getElementById('cfg-donatepay-url');
         const demo = document.getElementById('cfg-demo-payments');
         const status = document.getElementById('cfg-status');
         const data = {
-          donatepay_nick: (nick.value || '').trim().slice(0, 64),
+          donatepay_url: (url.value || '').trim().slice(0, 255),
           demo_payments: demo.value === '1' ? '1' : '0',
         };
         if (cloud && DB.setSiteConfig) {

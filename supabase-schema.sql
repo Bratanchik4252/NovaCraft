@@ -540,7 +540,8 @@ create table if not exists public.site_config (
 );
 
 insert into public.site_config (key, value) values
-  ('donatepay_nick', ''),   -- страница донатов DonatePay (ник/идентификатор)
+  ('donatepay_url', ''),    -- полная ссылка на страницу донатов, напр. https://donatepay.eu/don/49274
+  ('donatepay_nick', ''),   -- устарело (оставлено для совместимости), используется donatepay_url
   ('demo_payments', '1')    -- 1 — кнопка «Тестовый платёж» доступна, 0 — выключена
 on conflict (key) do nothing;
 
@@ -732,7 +733,8 @@ $$;
 grant execute on function public.demo_credit(numeric) to authenticated;
 
 -- ==========================================================================
--- RPC: ручная корректировка баланса игрока (админка, уровень 2+)
+-- RPC: ручная корректировка баланса игрока (админка, уровень 3+).
+-- Деньги (начисление/списание, выплаты) — только для создателя.
 -- delta может быть отрицательной (списание/возврат).
 -- ==========================================================================
 create or replace function public.admin_set_balance(target_name text, delta numeric)
@@ -747,7 +749,7 @@ declare
 begin
   if not exists (
     select 1 from public.profiles
-    where id = auth.uid() and admin_level >= 2
+    where id = auth.uid() and admin_level >= 3
   ) then
     return jsonb_build_object('ok', false, 'error', 'Нет прав');
   end if;
