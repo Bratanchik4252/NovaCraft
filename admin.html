@@ -554,8 +554,16 @@
           <input type="text" value="${MC.esc(value || '')}"></div>`;
       }
 
-      function openForm(table, row) {
+      async function openForm(table, row) {
         const cfg = TABLES[table];
+        // Форме привилегии нужен список серверов — дозагружаем, если ещё пуст
+        // (иначе пустой массив ломал открытие модалки).
+        if (table === 'privileges' && !serversNames.length) {
+          try {
+            const rows = await loadRows('servers');
+            serversNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
+          } catch (e) {}
+        }
         modalTable = table;
         modalRow = row ? Object.assign({}, row) : {};
         document.getElementById('crud-title').textContent =
@@ -573,7 +581,7 @@
           const el = document.getElementById('f-' + f.key);
           if (!el) return;
           let v = row ? row[f.key] : (f.type === 'checkbox' ? (table === 'privileges' && f.key === 'enabled') : '');
-          if (f.type === 'select' && !f.options.some(o => o[0] === String(v))) v = f.options[0][0];
+          if (f.type === 'select' && f.options.length && !f.options.some(o => o[0] === String(v))) v = f.options[0][0];
           if (f.type === 'checkbox') {
             el.checked = !!v;
           } else {
