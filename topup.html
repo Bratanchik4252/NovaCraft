@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Пополнение баланса — NOVACRAFT</title>
+  <meta name="description" content="Пополнение баланса через DonatePay: деньги зачисляются на аккаунт и тратятся в магазине привилегий.">
+  <link rel="icon" href="img/favicon.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Пополнение баланса</h1>
+      <p>Рубли зачисляются на аккаунт и тратятся в магазине привилегий.</p>
+    </div>
+
+    <div class="glass card anim-fade-up delay-1" style="max-width:640px;margin:0 auto">
+      <div class="topup-balance">
+        <span>Текущий баланс</span>
+        <b id="topup-balance">0 ₽</b>
+      </div>
+
+      <div class="field" style="margin-top:18px">
+        <label>Выбери сумму (₽)</label>
+        <div class="seg topup-amounts" id="topup-amounts">
+          <button class="os-tab active" data-a="100" type="button">100</button>
+          <button class="os-tab" data-a="200" type="button">200</button>
+          <button class="os-tab" data-a="500" type="button">500</button>
+          <button class="os-tab" data-a="1000" type="button">1000</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="topup-custom">Своя сумма</label>
+        <input type="number" id="topup-custom" min="10" max="100000" step="10" placeholder="от 10 ₽">
+      </div>
+
+      <button class="btn btn-primary" id="topup-donate" type="button" style="width:100%;margin-top:16px">
+        Пополнить через DonatePay
+      </button>
+      <p class="text-muted topup-hint" id="topup-hint" style="font-size:13px;margin-top:8px">
+        Нажми кнопку — откроется страница доната. В сообщении к донату напиши код из подсказки ниже.
+      </p>
+
+      <div id="topup-code-box" style="display:none;margin-top:16px;padding:14px;border:1px dashed var(--glass-border-hover);border-radius:14px;text-align:center">
+        <div class="text-muted" style="font-size:13px;margin-bottom:6px">Твой код для сообщения доната</div>
+        <div class="topup-code" id="topup-code">NC-XXXXXX</div>
+        <button class="btn btn-sm" id="topup-copy" type="button" style="margin-top:8px">Скопировать</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" id="topup-check" type="button" style="flex:1">Проверить оплату</button>
+        <button class="btn" id="topup-demo" type="button" style="flex:1">Тестовый платёж (демо)</button>
+      </div>
+      <span class="error-msg" id="topup-status" style="display:block;margin-top:10px"></span>
+    </div>
+
+    <div class="glass card anim-fade-up delay-2" style="max-width:640px;margin:22px auto 0">
+      <h4>История пополнений</h4>
+      <div id="topup-history" class="topup-history"><p class="text-muted">Пока пусто.</p></div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/topup.js"></script>
+</body>
+</html>

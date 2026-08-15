@@ -17,6 +17,7 @@ const DEFAULT_TABS = [
   { id: 'play',     label: 'Играть',       href: 'index.html'    },
   { id: 'download', label: 'Скачать',      href: 'download.html' },
   { id: 'servers',  label: 'Сервера',      href: 'servers.html'  },
+  { id: 'shop',     label: 'Магазин',      href: 'shop.html'     },
   { id: 'cabinet',  label: 'Личный кабинет', href: 'profile.html' },
 ];
 
@@ -274,6 +275,7 @@ function buildHeader() {
         <div class="dropdown" id="dropdown">
           <a href="rules.html">Правила</a>
           <a href="prefixes.html">Префиксы</a>
+          <a href="topup.html">Пополнение баланса</a>
           <a href="bans.html">Банлист</a>
           <a href="appeals.html">Обращения</a>
           <div class="dd-sep"></div>
@@ -416,6 +418,7 @@ const NOTIF_TYPES = {
   appeal:   { icon: '🎫', label: 'Обращение' },
   spend:    { icon: '🛒', label: 'Покупка на сайте' },
   withdraw: { icon: '💸', label: 'Вывод монет' },
+  topup:    { icon: '💰', label: 'Пополнение баланса' },
 };
 
 function loadNotifs(userId) {
@@ -696,6 +699,13 @@ document.addEventListener('DOMContentLoaded', () => {
       buildHeader();
     }).catch(() => {});
   }
+
+  // Любая страница может сообщить о смене пользователя/баланса (покупка,
+  // пополнение, корректировка в админке) — перерисовываем шапку и подвал.
+  document.addEventListener('mc:auth-changed', () => {
+    buildHeader();
+    buildFooter();
+  });
 
   // TODO: подключить реальный бэкенд и убрать этот метод
   // Временный авто-заход для демонстрации (можно удалить)

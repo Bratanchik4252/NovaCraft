@@ -209,6 +209,102 @@
     },
 
     /**
+     * Шаг 1 регистрации: отправить 6-значный код на email.
+     * Это НАСТОЯЩАЯ проверка почты — код физически уходит в ящик
+     * (Supabase Auth, signInWithOtp). Лимиты Free-плана:
+     * 360 кодов в час, повторная отправка — раз в 60 секунд.
+     * NOTE: в auth.users создаётся пользователь без пароля; если игрок
+     * бросил регистрацию, почта остаётся «занятой», но заново пройти
+     * OTP-поток с той же почтой можно (профиля нет — блокировки нет).
+     */
+    async sendEmailCode(email) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error } = await client.auth.signInWithOtp({ email });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    },
+
+    /**
+     * Шаг 2: проверить код из письма. При успехе почта подтверждена,
+     * и Supabase уже открыл сессию для этого пользователя (без пароля).
+     */
+    async verifyEmailCode(email, code) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { data, error } = await client.auth.verifyOtp({
+        email,
+        token: String(code).trim(),
+        type: 'email',
+      });
+      if (error) return { ok: false, error: 'Неверный код. Проверь письмо.' };
+      const session = data && data.session;
+      if (!session || !session.user) return { ok: false, error: 'Не удалось подтвердить почту' };
+      return { ok: true, userId: session.user.id, email: session.user.email || email };
+    },
+
+    /**
+     * Шаг 3: задать пароль и создать профиль. Вызывается ТОЛЬКО после
+     * успешной проверки кода (verifyEmailCode) — иначе аккаунт не создастся.
+     */
+    async finishRegistration(name, email, password) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+
+      const { data: userData, error: userErr } = await client.auth.updateUser({ password });
+      if (userErr) return { ok: false, error: userErr.message };
+      const user = userData && userData.user;
+      if (!user) return { ok: false, error: 'Не удалось создать аккаунт' };
+
+      const base = userToRow({
+        id: user.id,
+        name,
+        email: user.email || email,
+        balance: [{ serverName: 'Мирный', balance: 0 }],
+        balanceRub: 0,
+        stats: { blocks: 0, mobs: 0, timeHours: 0, timeMinutes: 0 },
+        privileges: [],
+        transactions: [],
+        providers: ['email'],
+        referrals: [],
+        refBy: null,
+        avatar: null,
+        skin: null,
+        cape: null,
+        banner: null,
+        description: '',
+        privacy: { showStats: true, showTime: true, showPrivilege: true, showDescription: true, showBanner: true },
+        twoFA: false,
+      });
+      const { error: insErr } = await client.from('profiles').insert(base);
+      if (insErr) return { ok: false, error: 'Ошибка создания профиля: ' + insErr.message };
+
+      // Реферальная система (облако): регистрация по ссылке ?ref=NICK
+      let refNick = null;
+      try { refNick = localStorage.getItem('mc:ref'); } catch (e) {}
+      if (refNick && String(refNick).trim()) {
+        refNick = String(refNick).trim().slice(0, 32);
+        try {
+          await client.rpc('add_referral', { target_name: refNick, new_nick: name });
+        } catch (e) {}
+        base.privileges = [{
+          name: 'VIP',
+          server: '—',
+          purchaseDate: new Date().toLocaleDateString('ru-RU'),
+          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        }];
+        base.ref_by = refNick;
+        const { error: vipErr } = await client.from('profiles')
+          .update({ privileges: base.privileges, ref_by: base.ref_by })
+          .eq('id', user.id);
+        if (vipErr) {
+          return { ok: false, error: 'Ошибка начисления VIP: ' + vipErr.message };
+        }
+        try { localStorage.removeItem('mc:ref'); } catch (e) {}
+      }
+
+      const rowUser = rowToUser(base);
+      this.saveLocalSession(rowUser);
+      return { ok: true, user: rowUser };
+    },
+    /**
      * Проверка: занят ли email в облаке.
      */
     async emailExists(email) {
@@ -577,6 +673,142 @@
       if (!this.configured) return null;
       const { data, error } = await client.from('prefixes').select('*').order('sort');
       return (error || !data) ? [] : data;
+    },
+
+    // ---------------- МАГАЗИН (привилегии) ----------------
+    // Каталог привилегий. Порядок: сначала по серверу, внутри — по
+    // старшинству (hierarchy), чтобы сайт мог считать «сумму» команд/китов:
+    // у вышестоящей привилегии автоматически есть всё, что у нижестоящих.
+    async listPrivileges() {
+      if (!this.configured) return null;
+      const { data, error } = await client
+        .from('privileges')
+        .select('*')
+        .order('hierarchy', { ascending: true })
+        .order('sort', { ascending: true });
+      return (error || !data) ? [] : data;
+    },
+
+    // ---------------- ПОПОЛНЕНИЕ БАЛАНСА (DonatePay) ----------------
+    // Публичные настройки: страница донатов, флаг тестовых платежей.
+    async getSiteConfig() {
+      if (!this.configured) return {};
+      const { data, error } = await client.from('site_config').select('key,value');
+      if (error || !data) return {};
+      const map = {};
+      data.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+
+    // Изменить настройку (RLS: только персонал, is_staff()).
+    async setSiteConfig(key, value) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { error } = await client.from('site_config').upsert({ key, value });
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+
+    // Создать «ожидающий платёж»: уникальный код, который игрок
+    // напишет в сообщении доната. Возвращает строку с кодом или null.
+    async createDonation(userId, code, amount) {
+      if (!this.configured || !userId) return null;
+      const { data, error } = await client
+        .from('donations')
+        .insert({ user_id: userId, code, amount_expected: Number(amount) || 0 })
+        .select()
+        .single();
+      return error ? null : data;
+    },
+
+    // Мои ожидающие/оплаченные пополнения (кнопка «Проверить оплату»).
+    async listMyDonations(userId) {
+      if (!this.configured || !userId) return [];
+      const { data, error } = await client
+        .from('donations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error || !data) return [];
+      return data.map(d => ({
+        id: d.id,
+        code: d.code,
+        amount: Number(d.amount_expected) || 0,
+        status: d.status,
+        paidAt: d.paid_at,
+        createdAt: d.created_at,
+      }));
+    },
+
+    // Покупка привилегии: списание баланса + выдача происходят в БД
+    // (RPC purchase_privilege, security definer) — игрок не может
+    // начислить себе ничего в обход.
+    async purchasePrivilege(privId, months) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { data, error } = await client.rpc('purchase_privilege', { p_id: privId, months });
+      if (error) return { ok: false, error: error.message };
+      return data && data.ok !== false
+        ? { ok: true, balance: Number(data.balance) }
+        : { ok: false, error: (data && data.error) || 'Ошибка покупки' };
+    },
+
+    // Тестовый платёж (демо): начисляет баланс, пока включён
+    // site_config.demo_payments. Перед релизом выключить флаг.
+    async demoCredit(amount) {
+      if (!this.configured) return { ok: false, error: 'Supabase не настроен' };
+      const { data, error } = await client.rpc('demo_credit', { p_amount: Number(amount) || 0 });
+      if (error) return { ok: false, error: error.message };
+      return data && data.ok !== false
+        ? { ok: true, balance: Number(data.balance) }
+        : { ok: false, error: (data && data.error) || 'Ошибка' };
+    },
+
+    // Текущий баланс игрока (для админки, раздел «Баланс игрока»).
+    async adminBalanceOf(query) {
+      if (!this.configured) return null;
+      const q = String(query || '').trim();
+      if (!q) return null;
+      let result = null;
+      const byId = await client.from('profiles').select('name,balance_rub').eq('id', q).maybeSingle();
+      if (byId.data) result = byId.data;
+      if (!result) {
+        const byName = await client.from('profiles').select('name,balance_rub').ilike('name', q).maybeSingle();
+        if (byName.data) result = byName.data;
+      }
+      return result ? { name: result.name, balanceRub: Number(result.balance_rub) || 0 } : null;
+    },
+
+    // Ручная корректировка баланса игрока (админка, уровень 2+).
+    // delta: + начислить, − списать. В localStorage-режиме — напрямую в mc:auth.
+    async adminSetBalance(targetName, delta) {
+      if (!this.configured) {
+        try {
+          const auth = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
+          const u = auth.users.find(x => String(x.name).toLowerCase() === String(targetName).toLowerCase());
+          if (!u) return { ok: false, error: 'Аккаунт не найден' };
+          u.balanceRub = Math.max(0, (Number(u.balanceRub) || 0) + Number(delta));
+          if (!Array.isArray(u.transactions)) u.transactions = [];
+          u.transactions.unshift({
+            type: Number(delta) >= 0 ? 'in' : 'out',
+            title: 'Ручная корректировка (админ)',
+            server: '—',
+            amount: Math.abs(Number(delta)),
+            unit: 'rub',
+            date: new Date().toLocaleDateString('ru-RU'),
+          });
+          localStorage.setItem('mc:auth', JSON.stringify(auth));
+          return { ok: true, balance: u.balanceRub };
+        } catch (e) {
+          return { ok: false, error: 'Ошибка: ' + e.message };
+        }
+      }
+      const { data, error } = await client.rpc('admin_set_balance', {
+        target_name: String(targetName),
+        delta: Number(delta) || 0,
+      });
+      if (error) return { ok: false, error: error.message };
+      return data && data.ok !== false
+        ? { ok: true, balance: Number(data.balance) }
+        : { ok: false, error: (data && data.error) || 'Ошибка' };
     },
 
     // Кэш цветов префиксов (ник → цвет) для шапки и профилей.

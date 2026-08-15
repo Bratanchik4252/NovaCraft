@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Магазин — NOVACRAFT</title>
+  <meta name="description" content="Привилегии проекта NOVACRAFT: команды, киты и бонусы на каждом сервере.">
+  <link rel="icon" href="img/favicon.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header id="site-header"></header>
+
+  <main class="page-content">
+    <div class="page-hero anim-fade-up">
+      <h1 class="text-glow">Магазин привилегий</h1>
+      <p>Выбери сервер, посмотри команды и киты каждой привилегии.</p>
+    </div>
+
+    <div class="shop-stage anim-fade-up delay-1" id="shop-stage">
+      <!-- Полоска выбора сервера: во всю ширину, скруглённые края.
+           После выбора плавно сжимается и уезжает в правый верхний угол. -->
+      <div class="shop-serverbar" id="serverbar">
+        <button class="shop-serverbtn" id="serverbtn" type="button">
+          <span class="ssb-label" id="ssb-label">Выбери сервер</span>
+          <span class="ssb-meta" id="ssb-meta"></span>
+          <svg class="ssb-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="shop-servermenu" id="servermenu"></div>
+      </div>
+
+      <div class="shop-content" id="shop-content">
+        <div class="shop-hint" id="shop-hint">
+          <p class="text-muted">Сначала выбери сервер — и мы покажем доступные привилегии.</p>
+        </div>
+        <div class="shop-grid" id="shop-grid"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Подтверждение покупки -->
+  <div class="modal-overlay" id="buy-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:440px">
+      <h3 style="margin-bottom:10px">Подтверждение покупки</h3>
+      <p class="text-muted" id="buy-modal-text" style="font-size:15px;margin-bottom:6px"></p>
+      <p id="buy-modal-balance" style="font-weight:700;font-size:17px;margin-bottom:4px"></p>
+      <p class="text-muted" id="buy-modal-note" style="font-size:13px">Средства спишутся с баланса. Отменить покупку нельзя.</p>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn btn-primary" id="buy-confirm" type="button" style="flex:1">Подтвердить</button>
+        <button class="btn" id="buy-cancel" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Недостаточно средств -->
+  <div class="modal-overlay" id="funds-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:440px;border-color:var(--warn)">
+      <h3 style="margin-bottom:10px">Недостаточно средств</h3>
+      <p class="text-muted" id="funds-modal-text" style="font-size:15px;margin-bottom:6px"></p>
+      <p class="text-muted" style="font-size:13px">Пополни баланс через DonatePay — и возвращайся за привилегией.</p>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <a class="btn btn-primary" href="topup.html" style="flex:1;text-align:center">Пополнить баланс</a>
+        <button class="btn" id="funds-cancel" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/shop.js"></script>
+</body>
+</html>

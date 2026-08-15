@@ -754,6 +754,7 @@ tbody tr:hover {
 
 .badge-ok { color: var(--success); border-color: var(--success); }
 .badge-bad { color: var(--danger); border-color: var(--danger); }
+.badge-off { color: var(--muted); border-color: var(--muted); }
 
 /* ---------- 14. Спиннер ---------- */
 .spinner {
@@ -2889,4 +2890,402 @@ main {
   font-weight: 900;
   line-height: 1;
 }
+
+/* ==========================================================================
+   40. Магазин (shop.html)
+   ========================================================================== */
+.shop-stage {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* --- Полоска выбора сервера: во всю ширину, скруглённые края --- */
+.shop-serverbar {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+  transition: width 0.6s var(--ease), margin-left 0.6s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+/* После выбора плавно сжимается и уезжает в правый верхний угол */
+.shop-stage.is-selected .shop-serverbar {
+  width: 320px;
+  margin-left: auto;
+}
+
+.shop-serverbtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s var(--ease);
+}
+
+.shop-serverbtn:hover,
+.shop-serverbar.open .shop-serverbtn {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.shop-serverbar.open .shop-serverbtn { box-shadow: var(--shadow); }
+
+.ssb-label { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ssb-meta {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.ssb-chevron {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  transition: transform 0.3s var(--ease);
+}
+
+.shop-serverbar.open .ssb-chevron { transform: rotate(180deg); }
+
+.shop-servermenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--dropdown-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), var(--shadow);
+  max-height: 300px;
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+.shop-serverbar.open .shop-servermenu {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.shop-server-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+}
+
+.shop-server-opt:hover { background: var(--glass-bg-hover); }
+
+.shop-server-opt-name { font-weight: 700; font-size: 16px; }
+
+.shop-server-opt-ver {
+  font-size: 13px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.shop-server-opt .badge { flex-shrink: 0; }
+
+.shop-server-empty {
+  padding: 14px 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- Контент после выбора сервера --- */
+.shop-content {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
+}
+
+.shop-content.active {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.shop-hint {
+  margin-top: 26px;
+  text-align: center;
+  padding: 30px 0;
+}
+
+.shop-balance {
+  margin-top: 26px;
+  margin-bottom: 4px;
+}
+
+.shop-balance-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.shop-balance-row b { font-size: 20px; color: var(--success); }
+
+.shop-balance-row .btn { margin-left: auto; }
+
+/* --- Сетка карточек привилегий --- */
+.shop-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.shop-card {
+  --pcol: var(--info);
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border-radius: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.shop-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--pcol), transparent);
+  opacity: 0.8;
+}
+
+.shop-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shop-dot {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.shop-card-title { min-width: 0; }
+
+.shop-pname { font-size: 20px; font-weight: 900; letter-spacing: 0.5px; }
+
+.shop-pserver { font-size: 13px; color: var(--muted); }
+
+.shop-owned {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(77, 255, 136, 0.12);
+  border: 1px solid rgba(77, 255, 136, 0.35);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.shop-pdesc {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.shop-inherit {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--info);
+  background: rgba(122, 162, 255, 0.1);
+  border: 1px dashed rgba(122, 162, 255, 0.35);
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.shop-price {
+  margin-top: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.shop-price-num { font-size: 26px; font-weight: 900; }
+
+.shop-price-note { font-size: 13px; color: var(--muted); }
+
+.shop-dur { margin-top: 12px; justify-content: stretch; }
+
+.shop-dur .os-tab { flex: 1; padding: 8px 6px; font-size: 13px; }
+
+.shop-buy {
+  margin-top: 14px;
+  width: 100%;
+  font-size: 15px;
+}
+
+.shop-buy[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Аккордеоны команд и китов */
+.shop-acc {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-acc .acc-item { overflow: hidden; }
+
+.shop-acc .acc-head { padding: 13px 16px; font-size: 15px; }
+
+.shop-acc .acc-body-inner {
+  padding: 4px 16px 16px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--glass-bg-hover);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: 'Consolas', 'Menlo', monospace;
+  color: var(--text);
+}
+
+.shop-from {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--info);
+  border: 1px solid rgba(122, 162, 255, 0.4);
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Тост-уведомление */
+#shop-toast {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translate(-50%, 20px);
+  background: var(--dropdown-bg);
+  color: var(--text);
+  padding: 13px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--success);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s var(--ease);
+  z-index: 300;
+  font-weight: 600;
+}
+
+#shop-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ==========================================================================
+   41. Пополнение баланса (topup.html)
+   ========================================================================== */
+.topup-balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.topup-balance b {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--success);
+}
+
+.topup-amounts { margin-top: 8px; }
+
+.topup-amounts .os-tab { flex: 1; }
+
+.topup-code {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--info);
+  user-select: all;
+}
+
+.topup-history {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topup-hist-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--glass-bg);
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.topup-hist-code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.topup-hist-row .badge-ok,
+.topup-hist-row .badge-off {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 

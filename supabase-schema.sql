@@ -490,3 +490,328 @@ create policy "hwid_bans_insert" on public.hwid_bans
   for insert with check (is_creator());
 create policy "hwid_bans_delete" on public.hwid_bans
   for delete using (is_creator());
+
+-- ==========================================================================
+-- Магазин привилегий + пополнение баланса (DonatePay)
+-- ==========================================================================
+
+-- ---------- Каталог привилегий магазина ----------
+-- Старшинство (hierarchy): чем больше число, тем «топовее» привилегия.
+-- Команды и киты нижестоящих привилегий АВТОМАТИЧЕСКИ переносятся
+-- в вышестоящие (на сайте и в лаунчере считается сумма по иерархии),
+-- поэтому у каждой привилегии хранятся ТОЛЬКО свои команды/киты.
+create table if not exists public.privileges (
+  id          bigint generated always as identity primary key,
+  name        text not null,                -- название привилегии (VIP, Dragon, ...)
+  server      text not null default '',     -- название сервера из таблицы servers
+  hierarchy   integer not null default 0,   -- старшинство: чем больше, тем топовее
+  price_rub   numeric not null default 0,   -- цена за 1 месяц, рубли
+  color       text,                         -- hex-цвет карточки привилегии
+  description text not null default '',
+  commands    jsonb not null default '[]',  -- СВОИ команды (напр. /fly, /kit vip)
+  kits        jsonb not null default '[]',  -- СВОИ киты
+  sort        integer not null default 0,
+  enabled     boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
+);
+create index if not exists privileges_server_idx on public.privileges (server, hierarchy, sort);
+
+-- ---------- Ожидающие пополнения (связка DonatePay -> аккаунт) ----------
+-- При пополнении сайт генерирует уникальный код (NC-XXXXXX), игрок пишет его
+-- в сообщении доната. Вебхук DonatePay (api/donatepay-ipn.js, service_role)
+-- находит платёж по коду через credit_donation() и начисляет баланс.
+create table if not exists public.donations (
+  id              bigint generated always as identity primary key,
+  user_id         uuid not null references public.profiles(id) on delete cascade,
+  code            text not null,                  -- уникальный код из сообщения доната
+  amount_expected numeric not null default 0,
+  status          text not null default 'pending',-- pending / paid / expired
+  operation_id    text,                           -- id операции из вебхука (защита от дублей)
+  donor_message   text,                           -- сообщение доната целиком
+  paid_at         timestamptz,
+  created_at      timestamptz not null default now()
+);
+create index if not exists donations_user_idx on public.donations (user_id, created_at desc);
+create unique index if not exists donations_code_idx on public.donations (lower(code));
+
+-- ---------- Настройки сайта (key/value), читаются публично ----------
+create table if not exists public.site_config (
+  key   text primary key,
+  value text not null default ''
+);
+
+insert into public.site_config (key, value) values
+  ('donatepay_nick', ''),   -- страница донатов DonatePay (ник/идентификатор)
+  ('demo_payments', '1')    -- 1 — кнопка «Тестовый платёж» доступна, 0 — выключена
+on conflict (key) do nothing;
+
+-- ==========================================================================
+-- RPC: покупка привилегии
+-- security definer — игрок не может сам себе начислить баланс через
+-- profiles.update: списание и выдача происходят только здесь.
+-- ==========================================================================
+create or replace function public.purchase_privilege(p_id bigint, months integer)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  me     uuid := auth.uid();
+  priv   public.privileges%rowtype;
+  rub    numeric;
+  price  numeric;
+  cur_privs jsonb;
+  cur_trans jsonb;
+begin
+  if me is null then
+    return jsonb_build_object('ok', false, 'error', 'Войди в аккаунт');
+  end if;
+  if months not in (1, 3, 6, 12) then
+    return jsonb_build_object('ok', false, 'error', 'Неверный срок');
+  end if;
+
+  select * into priv from public.privileges where id = p_id;
+  if priv is null then
+    return jsonb_build_object('ok', false, 'error', 'Привилегия не найдена');
+  end if;
+  if not priv.enabled then
+    return jsonb_build_object('ok', false, 'error', 'Привилегия недоступна');
+  end if;
+
+  price := coalesce(priv.price_rub, 0) * months;
+  select balance_rub into rub from public.profiles where id = me;
+  if rub is null then rub := 0; end if;
+  if rub < price then
+    return jsonb_build_object('ok', false, 'error', 'Недостаточно средств');
+  end if;
+
+  select coalesce(privileges, '[]'::jsonb) into cur_privs from public.profiles where id = me;
+  select coalesce(transactions, '[]'::jsonb) into cur_trans from public.profiles where id = me;
+
+  cur_privs := cur_privs || jsonb_build_object(
+    'name', priv.name,
+    'server', priv.server,
+    'purchaseDate', to_char(now(), 'DD.MM.YYYY'),
+    'expiresAt', (extract(epoch from (now() + make_interval(months => months))) * 1000)::bigint
+  );
+
+  cur_trans := jsonb_build_array(jsonb_build_object(
+    'type', 'out',
+    'title', 'Покупка: ' || priv.name,
+    'server', priv.server,
+    'amount', price,
+    'unit', 'rub',
+    'date', to_char(now(), 'DD.MM.YYYY')
+  )) || cur_trans;
+
+  update public.profiles
+     set balance_rub = rub - price,
+         privileges = cur_privs,
+         transactions = cur_trans
+   where id = me;
+
+  insert into public.notifications (user_id, type, title, body, url)
+  values (me, 'spend', 'Покупка привилегии',
+          'Привилегия «' || priv.name || '» на сервере «' || priv.server || '» на ' || months || ' мес.',
+          'shop.html');
+
+  return jsonb_build_object('ok', true, 'balance', rub - price);
+end;
+$$;
+grant execute on function public.purchase_privilege(bigint, integer) to authenticated;
+
+-- ==========================================================================
+-- RPC: начисление баланса по донату (вызывает ТОЛЬКО вебхук с service_role)
+-- Идемпотентно: одна operation_id начисляется один раз.
+-- ==========================================================================
+create or replace function public.credit_donation(p_code text, p_amount numeric, p_operation_id text, p_message text)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  d record;
+  rub numeric;
+  cur_trans jsonb;
+begin
+  select * into d from public.donations
+   where lower(code) = lower(coalesce(p_code, ''))
+     and status = 'pending'
+   order by id desc
+   limit 1;
+  if d is null then
+    return jsonb_build_object('ok', false, 'error', 'Платёж не найден');
+  end if;
+
+  if p_operation_id is not null and exists (
+    select 1 from public.donations
+     where operation_id = p_operation_id and status = 'paid'
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'Уже начислено');
+  end if;
+
+  select balance_rub into rub from public.profiles where id = d.user_id;
+  if rub is null then rub := 0; end if;
+  select coalesce(transactions, '[]'::jsonb) into cur_trans from public.profiles where id = d.user_id;
+
+  update public.profiles
+     set balance_rub = rub + p_amount,
+         transactions = jsonb_build_array(jsonb_build_object(
+           'type', 'in',
+           'title', 'Пополнение баланса (DonatePay)',
+           'server', '—',
+           'amount', p_amount,
+           'unit', 'rub',
+           'date', to_char(now(), 'DD.MM.YYYY')
+         )) || cur_trans
+   where id = d.user_id;
+
+  update public.donations
+     set status = 'paid',
+         operation_id = p_operation_id,
+         donor_message = p_message,
+         paid_at = now()
+   where id = d.id;
+
+  insert into public.notifications (user_id, type, title, body, url)
+  values (d.user_id, 'topup', 'Баланс пополнен',
+          'Начислено ' || p_amount || ' ₽ через DonatePay.', 'topup.html');
+
+  return jsonb_build_object('ok', true, 'balance', rub + p_amount);
+end;
+$$;
+grant execute on function public.credit_donation(text, numeric, text, text) to service_role;
+
+-- ==========================================================================
+-- RPC: тестовый платёж (кнопка «Тестовый платёж» на topup.html).
+-- Включён, пока site_config.demo_payments = '1'. Перед релизом выключить:
+--   update public.site_config set value = '0' where key = 'demo_payments';
+-- ==========================================================================
+create or replace function public.demo_credit(p_amount numeric)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  me   uuid := auth.uid();
+  rub  numeric;
+  flag text;
+  cur_trans jsonb;
+begin
+  if me is null then
+    return jsonb_build_object('ok', false, 'error', 'Войди в аккаунт');
+  end if;
+
+  select value into flag from public.site_config where key = 'demo_payments';
+  if coalesce(flag, '0') <> '1' then
+    return jsonb_build_object('ok', false, 'error', 'Тестовые платежи выключены');
+  end if;
+
+  if p_amount is null or p_amount <= 0 or p_amount > 100000 then
+    return jsonb_build_object('ok', false, 'error', 'Некорректная сумма');
+  end if;
+
+  select balance_rub into rub from public.profiles where id = me;
+  if rub is null then rub := 0; end if;
+  select coalesce(transactions, '[]'::jsonb) into cur_trans from public.profiles where id = me;
+
+  update public.profiles
+     set balance_rub = rub + p_amount,
+         transactions = jsonb_build_array(jsonb_build_object(
+           'type', 'in',
+           'title', 'Тестовое пополнение',
+           'server', '—',
+           'amount', p_amount,
+           'unit', 'rub',
+           'date', to_char(now(), 'DD.MM.YYYY')
+         )) || cur_trans
+   where id = me;
+
+  return jsonb_build_object('ok', true, 'balance', rub + p_amount);
+end;
+$$;
+grant execute on function public.demo_credit(numeric) to authenticated;
+
+-- ==========================================================================
+-- RPC: ручная корректировка баланса игрока (админка, уровень 2+)
+-- delta может быть отрицательной (списание/возврат).
+-- ==========================================================================
+create or replace function public.admin_set_balance(target_name text, delta numeric)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  targ uuid;
+  rub  numeric;
+  cur_trans jsonb;
+begin
+  if not exists (
+    select 1 from public.profiles
+    where id = auth.uid() and admin_level >= 2
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'Нет прав');
+  end if;
+
+  select id into targ from public.profiles where lower(name) = lower(target_name);
+  if targ is null then
+    return jsonb_build_object('ok', false, 'error', 'Игрок не найден');
+  end if;
+
+  select balance_rub into rub from public.profiles where id = targ;
+  if rub is null then rub := 0; end if;
+  rub := greatest(0, rub + delta);
+  select coalesce(transactions, '[]'::jsonb) into cur_trans from public.profiles where id = targ;
+
+  update public.profiles
+     set balance_rub = rub,
+         transactions = jsonb_build_array(jsonb_build_object(
+           'type', case when delta >= 0 then 'in' else 'out' end,
+           'title', 'Ручная корректировка (админ)',
+           'server', '—',
+           'amount', abs(delta),
+           'unit', 'rub',
+           'date', to_char(now(), 'DD.MM.YYYY')
+         )) || cur_trans
+   where id = targ;
+
+  return jsonb_build_object('ok', true, 'balance', rub);
+end;
+$$;
+grant execute on function public.admin_set_balance(text, numeric) to authenticated;
+
+-- ==========================================================================
+-- RLS для магазина
+-- ==========================================================================
+alter table public.privileges enable row level security;
+alter table public.donations   enable row level security;
+alter table public.site_config enable row level security;
+
+drop policy if exists "privileges_select" on public.privileges;
+create policy "privileges_select" on public.privileges
+  for select using (true);
+drop policy if exists "privileges_admin_insert" on public.privileges;
+drop policy if exists "privileges_admin_update" on public.privileges;
+drop policy if exists "privileges_admin_delete" on public.privileges;
+create policy "privileges_admin_insert" on public.privileges
+  for insert with check (is_staff());
+create policy "privileges_admin_update" on public.privileges
+  for update using (is_staff());
+create policy "privileges_admin_delete" on public.privileges
+  for delete using (is_staff());
+
+drop policy if exists "donations_select" on public.donations;
+drop policy if exists "donations_insert" on public.donations;
+create policy "donations_select" on public.donations
+  for select using (auth.uid() = user_id);
+create policy "donations_insert" on public.donations
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "site_config_select" on public.site_config;
+drop policy if exists "site_config_admin_insert" on public.site_config;
+drop policy if exists "site_config_admin_update" on public.site_config;
+create policy "site_config_select" on public.site_config
+  for select using (true);
+create policy "site_config_admin_insert" on public.site_config
+  for insert with check (is_staff());
+create policy "site_config_admin_update" on public.site_config
+  for update using (is_staff());

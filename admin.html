@@ -57,6 +57,7 @@
         <div class="cab-tab" data-tab="team" style="cursor:pointer">Команда</div>
         <div class="cab-tab" data-tab="rules" style="cursor:pointer">Правила</div>
         <div class="cab-tab" data-tab="prefixes" style="cursor:pointer">Префиксы</div>
+        <div class="cab-tab" data-tab="shop" style="cursor:pointer">Магазин</div>
       </aside>
 
       <section>
@@ -215,6 +216,74 @@
           </div>
         </div>
 
+        <!-- ============ МАГАЗИН (привилегии) ============ -->
+        <div class="cab-panel" id="panel-shop">
+          <h3>Магазин</h3>
+          <p class="text-muted">
+            Привилегии магазина (shop.html) и пополнение баланса. Настраивается с уровня 2 (администратор).
+            <b>Старшинство</b> — чем больше число, тем «топовее» привилегия: команды и киты нижестоящих
+            привилегий автоматически переносятся в вышестоящие, описывать их заново не нужно.
+          </p>
+
+          <div class="glass cab-card">
+            <div class="adm-toolbar">
+              <span class="text-muted" style="font-size:13px" id="privileges-count"></span>
+              <button class="btn btn-sm btn-primary" data-new="privileges" type="button">+ Создать привилегию</button>
+            </div>
+            <div id="privileges-list"></div>
+          </div>
+
+          <div class="glass cab-card">
+            <h4>Настройки пополнения (DonatePay)</h4>
+            <p class="text-muted" style="font-size:13px;margin-bottom:14px">
+              Ник страницы донатов — используется в ссылке на DonatePay. «Тестовый платёж» — кнопка
+              демо-начисления на topup.html (перед релизом выключить).
+            </p>
+            <div class="field">
+              <label for="cfg-donatepay-nick">Ник страницы донатов DonatePay</label>
+              <input id="cfg-donatepay-nick" placeholder="например: myproject">
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label for="cfg-demo-payments">Тестовый платёж (демо-начисление баланса)</label>
+              <select id="cfg-demo-payments">
+                <option value="1">Включён</option>
+                <option value="0">Выключен</option>
+              </select>
+            </div>
+            <button class="btn btn-sm btn-primary" id="cfg-save" type="button" style="margin-top:14px">Сохранить</button>
+            <span class="error-msg" id="cfg-status" style="display:block;margin-top:10px"></span>
+          </div>
+
+          <div class="glass cab-card">
+            <h4>Баланс игрока</h4>
+            <p class="text-muted" style="font-size:13px;margin-bottom:14px">
+              Начислить или списать рубли (для возвратов и тестов). Изменение записывается в историю игрока.
+            </p>
+            <div class="field">
+              <label for="bal-query">Ник игрока</label>
+              <input id="bal-query" placeholder="Например: BuShiZm">
+            </div>
+            <button class="btn btn-sm" id="bal-find" type="button">Найти</button>
+            <span class="error-msg" id="bal-find-status" style="display:block;margin-top:10px"></span>
+
+            <div id="bal-found" style="display:none;margin-top:14px">
+              <div class="adm-found-user">
+                <span id="bal-found-avatar" class="account-avatar account-letter"></span>
+                <div>
+                  <div id="bal-found-name" style="font-weight:800"></div>
+                  <div class="text-muted" style="font-size:12px" id="bal-found-balance"></div>
+                </div>
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label for="bal-delta">Сумма (положительная — начислить, отрицательная — списать)</label>
+                <input id="bal-delta" type="number" step="1" placeholder="например 500 или -100">
+              </div>
+              <button class="btn btn-sm btn-primary" id="bal-apply" type="button">Применить</button>
+              <span class="error-msg" id="bal-set-status" style="display:block;margin-top:10px"></span>
+            </div>
+          </div>
+        </div>
+
       </section>
     </div>
   </main>
@@ -268,7 +337,7 @@
       // ---------- Вкладки ----------
       // Минимальный уровень для каждой вкладки: 1 — хелпер (только обращения),
       // 2 — администратор (всё, кроме уровней), 3 — создатель (всё).
-      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2 };
+      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2, shop: 2 };
       const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
       tabs.forEach(tab => {
         if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
@@ -357,7 +426,29 @@
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
           ],
         },
+        privileges: {
+          label: 'Привилегия',
+          columns: [['name', 'Название'], ['server', 'Сервер'], ['hierarchy', 'Старшинство'], ['priceText', 'Цена/мес'], ['commandsCount', 'Команды'], ['kitsCount', 'Киты'], ['enabled', 'Продаётся']],
+          fields: [
+            { key: 'name', label: 'Название привилегии', type: 'text', required: true },
+            { key: 'server', label: 'Сервер', type: 'select', options: () => serversNames.map(n => [n, n]) },
+            { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды/киты нижестоящих переносятся автоматически)', type: 'number' },
+            { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
+            { key: 'color', label: 'Цвет карточки привилегии', type: 'color' },
+            { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
+            { key: 'commands', label: 'СВОИ команды (по одной в строке, напр. /fly)', type: 'tags' },
+            { key: 'kits', label: 'СВОИ киты (по одному в строке)', type: 'tags' },
+            { key: 'sort', label: 'Порядок (sort)', type: 'number' },
+            { key: 'enabled', label: 'Продаётся в магазине', type: 'checkbox' },
+          ],
+        },
       };
+
+      // Названия серверов — для выпадающего списка в форме привилегии
+      let serversNames = [];
+      loadRows('servers').then(rows => {
+        serversNames = (rows || []).map(r => String(r.name || '')).filter(Boolean);
+      }).catch(() => {});
 
       const cloud = DB && DB.configured;
 
@@ -374,6 +465,7 @@
           const list = {
             servers: DB.listServers, bans: DB.listBans,
             team: DB.listTeam, rules: DB.listRules, prefixes: DB.listPrefixes,
+            privileges: DB.listPrivileges,
           }[table];
           if (list) {
             try {
@@ -428,8 +520,9 @@
             <textarea id="f-${f.key}" rows="3" placeholder="${MC.esc(f.placeholder || '')}"></textarea></div>`;
         }
         if (f.type === 'select') {
+          const options = typeof f.options === 'function' ? f.options() : (f.options || []);
           return `<div class="field"><label for="f-${f.key}">${MC.esc(f.label)}</label>
-            <select id="f-${f.key}">${f.options.map(o => `<option value="${MC.esc(o[0])}">${MC.esc(o[1])}</option>`).join('')}</select></div>`;
+            <select id="f-${f.key}">${options.map(o => `<option value="${MC.esc(o[0])}">${MC.esc(o[1])}</option>`).join('')}</select></div>`;
         }
         if (f.type === 'checkbox') {
           return `<div class="field" style="display:flex;align-items:center;gap:8px;min-height:40px">
@@ -470,7 +563,7 @@
           }
           const el = document.getElementById('f-' + f.key);
           if (!el) return;
-          let v = row ? row[f.key] : (f.type === 'checkbox' ? false : '');
+          let v = row ? row[f.key] : (f.type === 'checkbox' ? (table === 'privileges' && f.key === 'enabled') : '');
           if (f.type === 'select' && !f.options.some(o => o[0] === String(v))) v = f.options[0][0];
           if (f.type === 'checkbox') {
             el.checked = !!v;
@@ -561,6 +654,9 @@
         if (c === 'public') return r.public ? '<span class="badge-ok">да</span>' : '<span class="badge-off">нет</span>';
         if (c === 'active') return r.active !== false ? '<span class="badge-ok">да</span>' : '<span class="badge-off">нет</span>';
         if (c === 'section') return r.section === 'servers' ? 'Сервера' : 'Проект';
+        if (c === 'commandsCount') return Array.isArray(r.commands) ? r.commands.length + ' шт.' : '0 шт.';
+        if (c === 'kitsCount') return Array.isArray(r.kits) ? r.kits.length + ' шт.' : '0 шт.';
+        if (c === 'priceText') return Number(r.price_rub) ? Number(r.price_rub) + ' ₽' : '—';
         const v = r[c];
         return v == null || v === '' ? '—' : String(v);
       }
@@ -604,7 +700,7 @@
         });
       }
 
-      ['servers', 'bans', 'team', 'rules', 'prefixes'].forEach(t => renderTable(t));
+      ['servers', 'bans', 'team', 'rules', 'prefixes', 'privileges'].forEach(t => renderTable(t));
 
       // ============================================================
       // Тикеты (обращения)
@@ -858,6 +954,104 @@
         note.innerHTML = '⚠ Supabase не подключён — изменения сохраняются <b>локально в браузере</b> (для теста). С реальной БД админка заработает автоматически.';
         panel.querySelector('section').prepend(note);
       }
+
+      // ============================================================
+      // Магазин: настройки пополнения (site_config)
+      // ============================================================
+      function loadShopConfig() {
+        const nick = document.getElementById('cfg-donatepay-nick');
+        const demo = document.getElementById('cfg-demo-payments');
+        if (!nick || !demo) return;
+        if (cloud && DB.getSiteConfig) {
+          DB.getSiteConfig().then(cfg => {
+            nick.value = cfg.donatepay_nick || '';
+            demo.value = cfg.demo_payments === '1' ? '1' : '0';
+          }).catch(() => {});
+        } else {
+          try {
+            const cfg = JSON.parse(localStorage.getItem('mc:site-config') || '{}');
+            nick.value = cfg.donatepay_nick || '';
+            demo.value = cfg.demo_payments === '1' ? '1' : '0';
+          } catch (e) {}
+        }
+      }
+
+      document.getElementById('cfg-save')?.addEventListener('click', async () => {
+        const nick = document.getElementById('cfg-donatepay-nick');
+        const demo = document.getElementById('cfg-demo-payments');
+        const status = document.getElementById('cfg-status');
+        const data = {
+          donatepay_nick: (nick.value || '').trim().slice(0, 64),
+          demo_payments: demo.value === '1' ? '1' : '0',
+        };
+        if (cloud && DB.setSiteConfig) {
+          for (const k of Object.keys(data)) {
+            const res = await DB.setSiteConfig(k, data[k]);
+            if (!res.ok) { status.style.color = ''; status.textContent = 'Ошибка: ' + res.error; return; }
+          }
+        } else {
+          try {
+            const cur = JSON.parse(localStorage.getItem('mc:site-config') || '{}');
+            Object.assign(cur, data);
+            localStorage.setItem('mc:site-config', JSON.stringify(cur));
+          } catch (e) {}
+        }
+        status.style.color = 'var(--success)';
+        status.textContent = 'Настройки сохранены';
+      });
+      loadShopConfig();
+
+      // ============================================================
+      // Магазин: корректировка баланса игрока (уровень 2+)
+      // ============================================================
+      let foundBalTarget = null;
+
+      document.getElementById('bal-find')?.addEventListener('click', async () => {
+        const q = document.getElementById('bal-query').value.trim();
+        const status = document.getElementById('bal-find-status');
+        status.textContent = '';
+        if (!q) { status.textContent = 'Введите ник игрока'; return; }
+        if (cloud && DB.adminBalanceOf) {
+          const res = await DB.adminBalanceOf(q);
+          if (!res) {
+            status.textContent = 'Аккаунт не найден.';
+            document.getElementById('bal-found').style.display = 'none';
+            foundBalTarget = null;
+            return;
+          }
+          foundBalTarget = { name: res.name, balanceRub: Number(res.balanceRub) || 0 };
+          document.getElementById('bal-found-name').textContent = res.name;
+          document.getElementById('bal-found-avatar').textContent = (res.name[0] || '?').toUpperCase();
+          document.getElementById('bal-found-balance').textContent = 'Баланс: ' + (Number(res.balanceRub) || 0) + ' ₽';
+          document.getElementById('bal-found').style.display = '';
+        } else {
+          // localStorage-режим: ищем в mc:auth
+          try {
+            const auth = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
+            const u = auth.users.find(x => String(x.name).toLowerCase() === String(q).toLowerCase());
+            if (!u) { status.textContent = 'Аккаунт не найден.'; document.getElementById('bal-found').style.display = 'none'; foundBalTarget = null; return; }
+            foundBalTarget = { name: u.name, balanceRub: Number(u.balanceRub) || 0 };
+            document.getElementById('bal-found-name').textContent = u.name;
+            document.getElementById('bal-found-avatar').textContent = (u.name[0] || '?').toUpperCase();
+            document.getElementById('bal-found-balance').textContent = 'Баланс: ' + (Number(u.balanceRub) || 0) + ' ₽';
+            document.getElementById('bal-found').style.display = '';
+          } catch (e) { status.textContent = 'Ошибка: ' + e.message; }
+        }
+      });
+
+      document.getElementById('bal-apply')?.addEventListener('click', async () => {
+        const status = document.getElementById('bal-set-status');
+        status.textContent = '';
+        if (!foundBalTarget) { status.textContent = 'Сначала найди игрока'; return; }
+        const delta = Number(document.getElementById('bal-delta').value);
+        if (!delta || isNaN(delta)) { status.textContent = 'Введи сумму (например 500 или -100)'; return; }
+        const res = await DB.adminSetBalance(foundBalTarget.name, delta);
+        if (!res.ok) { status.style.color = ''; status.textContent = 'Ошибка: ' + res.error; return; }
+        foundBalTarget.balanceRub = res.balance;
+        status.style.color = 'var(--success)';
+        status.textContent = 'Баланс «' + foundBalTarget.name + '»: ' + (Number(res.balance) || 0) + ' ₽';
+        document.getElementById('bal-found-balance').textContent = 'Баланс: ' + (Number(res.balance) || 0) + ' ₽';
+      });
     });
   </script>
 </body>

@@ -340,12 +340,16 @@
     });
 
     // ---------- Регистрация ----------
-    // Поток: email → проверка что email не занят → ник (с предложениями) + пароль.
-    // Без отправки писем. Если Supabase подключён — проверка идёт по облаку,
-    // иначе по localStorage. Соцсети убраны; вход — по нику/email и паролю.
+    // Поток: email → НАСТОЯЩИЙ код из письма (Supabase OTP, если облако
+    // подключено) → ник (с предложениями) + пароль. Без облака — проверка
+    // только на занятость (имитация, писем нет).
     const regEmail = $('#reg-email');
     const regEmailSend = $('#reg-email-send');
     const regEmailError = $('#reg-email-error');
+    const regCodeWrap = $('#reg-code-wrap');
+    const regCode = $('#reg-code');
+    const regCodeSend = $('#reg-code-send');
+    const regCodeError = $('#reg-code-error');
     const regMainStep = $('#reg-main-step');
     const regName = $('#reg-name');
     const regNameError = $('#reg-name-error');
@@ -353,7 +357,8 @@
     const regPassword = $('#reg-password');
     const regPassword2 = $('#reg-password2');
 
-    let regEmailOk = null;  // подтверждённый email
+    let regEmailOk = null;       // подтверждённый email
+    let regEmailVerified = false;// код с почты введён верно (облако)
 
     const sbOn = !!(window.DB && DB.configured);
 
@@ -396,7 +401,24 @@
       return true;
     }
 
-    // Шаг 1: подтвердить email (просто проверка, что он не занят)
+    // Шаг 1: получить код на почту (облако) / проверить, что почта свободна (локально).
+    // Повторная отправка кода — раз в 60 секунд (лимит Supabase).
+    function startResendTimer(seconds) {
+      let left = seconds;
+      regEmailSend.disabled = true;
+      regEmailSend.textContent = 'Отправить ещё раз через ' + left + ' с';
+      const timer = setInterval(() => {
+        left--;
+        if (left <= 0) {
+          clearInterval(timer);
+          regEmailSend.disabled = false;
+          regEmailSend.textContent = 'Отправить код ещё раз';
+        } else {
+          regEmailSend.textContent = 'Отправить ещё раз через ' + left + ' с';
+        }
+      }, 1000);
+    }
+
     regEmailSend.addEventListener('click', async () => {
       const email = regEmail.value.trim();
       regEmailError.textContent = '';
@@ -408,20 +430,72 @@
       regEmailSend.disabled = true;
       regEmailSend.textContent = 'Проверяем…';
       const taken = await emailTaken(email);
-      regEmailSend.disabled = false;
-      regEmailSend.textContent = 'Подтвердить почту';
-
       if (taken) {
+        regEmailSend.disabled = false;
+        regEmailSend.textContent = sbOn ? 'Получить код' : 'Подтвердить почту';
         regEmailError.style.color = '';
         regEmailError.textContent = 'Этот email уже зарегистрирован';
         return;
       }
 
+      if (!sbOn) {
+        // Без облака: почта просто «свободна» (имитация, писем нет)
+        regEmailOk = email.toLowerCase();
+        regEmailError.style.color = 'var(--success)';
+        regEmailError.textContent = 'Email свободен';
+        regEmailSend.disabled = true;
+        regEmailSend.textContent = 'Email подтверждён';
+        regMainStep.style.display = 'block';
+        regName.focus();
+        return;
+      }
+
+      // Облако: отправляем НАСТОЯЩИЙ код на почту
+      const res = await DB.sendEmailCode(email);
+      if (!res.ok) {
+        regEmailSend.disabled = false;
+        regEmailSend.textContent = 'Получить код';
+        regEmailError.style.color = '';
+        regEmailError.textContent = res.error;
+        return;
+      }
       regEmailOk = email.toLowerCase();
+      regCode.value = '';
+      regCodeError.textContent = '';
+      regCodeWrap.style.display = 'block';
+      regCode.focus();
       regEmailError.style.color = 'var(--success)';
-      regEmailError.textContent = 'Email свободен';
+      regEmailError.textContent = 'Код отправлен на почту. Проверь ящик (и спам).';
+      startResendTimer(60);
+    });
+
+    // Шаг 2: ввести код из письма (реальная проверка почты)
+    regCodeSend.addEventListener('click', async () => {
+      const code = regCode.value.trim();
+      regCodeError.textContent = '';
+      if (!regEmailOk) {
+        regCodeError.textContent = 'Сначала получи код на почту';
+        return;
+      }
+      if (!code) {
+        regCodeError.textContent = 'Введи код из письма';
+        return;
+      }
+      regCodeSend.disabled = true;
+      regCodeSend.textContent = 'Проверяем…';
+      const res = await DB.verifyEmailCode(regEmailOk, code);
+      regCodeSend.disabled = false;
+      regCodeSend.textContent = 'Подтвердить код';
+      if (!res.ok) {
+        regCodeError.style.color = '';
+        regCodeError.textContent = res.error;
+        return;
+      }
+      regEmailVerified = true;
+      regCodeError.style.color = 'var(--success)';
+      regCodeError.textContent = 'Почта подтверждена';
+      regCodeSend.disabled = true;
       regEmailSend.disabled = true;
-      regEmailSend.textContent = 'Email подтверждён';
       regMainStep.style.display = 'block';
       regName.focus();
     });
@@ -484,12 +558,17 @@
       const pass2 = regPassword2.value;
 
       if (!regEmailOk) return showErr(err, 'Сначала подтверди email');
+      if (sbOn && !regEmailVerified) return showErr(err, 'Сначала введи код из письма');
       if (name.length < 3) return showErr(err, 'Никнейм должен быть не короче 3 символов');
       const passErr = validatePassword(pass);
       if (passErr) return showErr(err, passErr);
       if (pass !== pass2) return showErr(err, 'Пароли не совпадают');
 
-      const res = await Auth.register(name, regEmailOk, pass);
+      // Облако: аккаунт создаётся после реальной проверки кода
+      // (finishRegistration задаёт пароль и создаёт профиль).
+      const res = sbOn
+        ? await DB.finishRegistration(name, regEmailOk, pass)
+        : await Auth.register(name, regEmailOk, pass);
       if (!res.ok) return showErr(err, res.error);
 
       location.href = redirect;
