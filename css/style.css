@@ -3257,6 +3257,15 @@ main {
   user-select: all;
 }
 
+.topup-code-sm {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--info);
+  cursor: pointer;
+  border-bottom: 1px dashed var(--info);
+}
+
 .topup-history {
   margin-top: 12px;
   display: flex;

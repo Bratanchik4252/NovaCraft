@@ -106,26 +106,52 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (e) {}
     }
     currentCode = code;
-    codeEl.textContent = code;
-    codeBox.style.display = '';
+    // Код показываем только если вкладка DonatePay не открылась
+    // (страница осталась видимой) — тогда его вписывают в «Сообщение» вручную.
+    codeBox.style.display = 'none';
     setStatus('');
 
     // Открываем страницу доната DonatePay.
     // Сумма и код подставляются параметрами — плательщик просто вводит карту
     // и платит (код в сообщении уже заполнен). Если DonatePay не подхватит
-    // ?message — игрок впишет код вручную (поле «Сообщение» на странице доната).
-    const link = donateBase + '?amount=' + sum + '&message=' + encodeURIComponent(code);
-    window.open(link, '_blank', 'noopener');
+    // ?message — код вписывается вручную (поле «Сообщение» на странице доната).
+    let base = donateBase;
+    if (!/^https?:\/\//i.test(base)) base = 'https://' + base; // вдруг в админке без http
+    const link = base + '?amount=' + sum + '&message=' + encodeURIComponent(code);
+
+    // Пробуем открыть вкладку; если блокировщик всплывающих окон не дал —
+    // эмулируем клик по ссылке (часто пропускается после действия пользователя).
+    let win = null;
+    try { win = window.open(link, '_blank', 'noopener'); } catch (e) {}
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // Если через 1.5 сек страница всё ещё видима (вкладка не открылась) —
+    // показываем код и прямую ссылку.
+    setTimeout(() => {
+      if (document.hidden) return; // вкладка DonatePay открылась и в фокусе
+      codeEl.textContent = code;
+      codeBox.style.display = '';
+      setStatus('Не открылась вкладка? Перейди по ссылке: ' + link, false);
+    }, 1500);
   });
 
-  copyBtn.addEventListener('click', () => {
+  function copyCode() {
     if (!currentCode) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(currentCode).catch(() => {});
     }
     copyBtn.textContent = 'Скопировано ✓';
     setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1800);
-  });
+  }
+  copyBtn.addEventListener('click', copyCode);
+  codeEl.addEventListener('click', copyCode);
 
   // ---------- Проверка оплаты ----------
   checkBtn.addEventListener('click', async () => {

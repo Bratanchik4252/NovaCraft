@@ -45,13 +45,13 @@
         Пополнить через DonatePay
       </button>
       <p class="text-muted topup-hint" id="topup-hint" style="font-size:13px;margin-top:8px">
-        Нажми кнопку — откроется страница доната. В сообщении к донату напиши код из подсказки ниже.
+        Нажми кнопку — откроется страница доната с уже заполненной суммой. Просто введи данные карты и оплати.
       </p>
 
-      <div id="topup-code-box" style="display:none;margin-top:16px;padding:14px;border:1px dashed var(--glass-border-hover);border-radius:14px;text-align:center">
-        <div class="text-muted" style="font-size:13px;margin-bottom:6px">Твой код для сообщения доната</div>
-        <div class="topup-code" id="topup-code">NC-XXXXXX</div>
-        <button class="btn btn-sm" id="topup-copy" type="button" style="margin-top:8px">Скопировать</button>
+      <div id="topup-code-box" style="display:none;margin-top:12px;padding:10px 12px;border:1px dashed var(--glass-border-hover);border-radius:12px;font-size:13px" class="text-muted">
+        Не открылась страница DonatePay? Код для поля «Сообщение»:
+        <b id="topup-code" class="topup-code-sm">NC-XXXXXX</b>
+        <button class="btn btn-sm" id="topup-copy" type="button" style="margin-left:8px">Скопировать</button>
       </div>
 
       <div style="display:flex;gap:10px;margin-top:14px">
