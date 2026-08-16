@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selected = null;    // выбранный сервер (имя)
   let selectedPrivId = null; // id выбранной привилегии (квадрата)
   let currentBuy = null;  // { priv, months, forever, total }
-  const DURATIONS = [1, 3];
 
   // ---------- Загрузка данных (облако / localStorage) ----------
   function lsTable(key) {
@@ -203,6 +202,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       .filter(x => x.cmd);
   }
 
+  // Цвет привилегии по названию (для замков и пометок «от X»)
+  function privColor(name) {
+    const p = privileges.find(x => String(x.name) === String(name));
+    return (p && p.color) || 'var(--info)';
+  }
+
   // { own: [{cmd, desc, from|null}], locked: [{cmd, desc, from}] }
   // own — команды этой привилегии + всех нижестоящих (старшинство меньше);
   // locked — команды привилегий выше по старшинству, под замком «Доступно от X».
@@ -323,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </svg>
         <code class="shop-cmd-code">${MC.esc(c.cmd)}</code>
         <span class="shop-cmd-desc">${c.desc ? MC.esc(c.desc) : ''}</span>
-        <span class="shop-lock-note">Доступно от ${MC.esc(c.from)}</span>
+        <span class="shop-lock-note" style="color:${MC.esc(privColor(c.from))}">Доступно от ${MC.esc(c.from)}</span>
       </div>`).join('');
 
     const cmdSection = (eff.own.length || eff.locked.length) ? `
@@ -347,13 +352,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="shop-kits-grid">${kitCards}</div>
       </section>` : '';
 
-    const durHtml = DURATIONS.map(m => {
-      const priceKey = m === 1 ? 'price_rub' : 'price_' + m;
-      const zero = !(Number(priv[priceKey]) || 0);
-      return `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" data-forever="0" type="button"
-        ${zero ? 'disabled' : ''}>${m} мес</button>`;
-    }).join('') +
-    `<button class="os-tab" data-m="0" data-forever="1" type="button" ${foreverPrice <= 0 ? 'disabled' : ''}>Навсегда</button>`;
+    // Кнопки сроков с ценами в одну строку: [1 мес] [3 мес] [Навсегда]
+    function durBtn(label, months, forever, price) {
+      const zero = !(Number(price) || 0);
+      const withDisc = Math.round((Number(price) || 0) * (100 - pct) / 100);
+      const old = pct > 0 && !zero && withDisc !== (Number(price) || 0)
+        ? `<span class="d-old">${fmtRub(Number(price))}</span>` : '';
+      const badge = pct > 0 && !zero
+        ? `<span class="shop-disc-badge d-badge">−${pct}%</span>` : '';
+      return `<button class="os-tab shop-dur-btn${months === 1 && !forever ? ' active' : ''}"
+        data-m="${months}" data-forever="${forever ? '1' : '0'}" type="button" ${zero ? 'disabled' : ''}>
+        <span class="d-label">${label}</span>
+        <span class="d-price">${zero ? '—' : fmtRub(withDisc)}</span>
+        ${old}${badge}
+      </button>`;
+    }
+    const durHtml = durBtn('1 мес', 1, false, priv.price_rub) +
+      durBtn('3 мес', 3, false, priv.price_3) +
+      durBtn('Навсегда', 0, true, foreverPrice);
 
     detailHost.innerHTML = `
   <article class="shop-card glass" data-id="${MC.esc(priv.id)}" data-months="1" data-forever="0" style="--pcol:${MC.esc(color)}">
@@ -367,13 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     </header>
 
     <div class="shop-buyblock">
-      <div class="shop-price-row">
-        <span class="shop-price-num" style="color:${MC.esc(color)}">${fmtRub(first.total)}</span>
-        <span class="shop-price-note">за 1 мес</span>
-        <span class="shop-price-old" style="${pct > 0 ? '' : 'display:none'}">${pct > 0 ? fmtRub(first.base) : ''}</span>
-        ${pct > 0 ? `<span class="shop-disc-badge">−${pct}%</span>` : ''}
-      </div>
-      <div class="seg shop-dur">${durHtml}</div>
+      <div class="shop-dur-row">${durHtml}</div>
       <button class="btn btn-primary shop-buy" type="button" ${owned ? 'disabled' : ''}>
         ${owned ? 'Куплена' : 'Купить за <span class="shop-buy-total">' + fmtRub(first.total) + '</span>'}
       </button>
@@ -403,17 +413,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!priv) return;
     const forever = card.dataset.forever === '1';
     const months = Number(card.dataset.months) || 1;
-    const { total, base, pct } = priceFor(priv, months, forever);
-    const num = card.querySelector('.shop-price-num');
-    const note = card.querySelector('.shop-price-note');
-    const oldEl = card.querySelector('.shop-price-old');
+    const { total } = priceFor(priv, months, forever);
     const buyTxt = card.querySelector('.shop-buy-total');
-    if (num) num.textContent = fmtRub(total);
-    if (note) note.textContent = forever ? 'навсегда' : ('за ' + months + (months === 12 ? ' мес (год)' : ' мес'));
-    if (oldEl) {
-      if (pct > 0) { oldEl.textContent = fmtRub(base); oldEl.style.display = ''; }
-      else { oldEl.textContent = ''; oldEl.style.display = 'none'; }
-    }
     if (buyTxt) buyTxt.textContent = fmtRub(total);
   }
 

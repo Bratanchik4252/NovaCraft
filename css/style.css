@@ -3166,23 +3166,37 @@ main {
   border: 1px solid var(--glass-border);
 }
 
-.shop-price-row {
-  display: flex;
-  align-items: baseline;
+/* Кнопки сроков с ценой — одна строка, на всю ширину */
+.shop-dur-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  flex-wrap: wrap;
 }
 
-.shop-price-num { font-size: 28px; font-weight: 900; }
+.shop-dur-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 6px;
+  min-height: 58px;
+}
 
-.shop-price-note { font-size: 13px; color: var(--muted); }
+.shop-dur-btn .d-label { font-size: 12px; font-weight: 700; color: var(--text); }
 
-.shop-price-old {
-  font-size: 16px;
+.shop-dur-btn .d-price { font-size: 15px; font-weight: 900; }
+
+.shop-dur-btn .d-old {
+  font-size: 11px;
   color: var(--muted);
   text-decoration: line-through;
   font-weight: 600;
 }
+
+.shop-dur-btn .d-badge { font-size: 10px; padding: 1px 7px; }
+
+.shop-dur-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .shop-disc-badge {
   font-size: 12px;
@@ -3194,10 +3208,6 @@ main {
   border-radius: 999px;
   white-space: nowrap;
 }
-
-.shop-dur { margin-top: 14px; justify-content: stretch; }
-.shop-dur .os-tab { flex: 1; padding: 8px 6px; font-size: 13px; }
-.shop-dur .os-tab:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .shop-buy { margin-top: 14px; width: 100%; font-size: 15px; }
 
