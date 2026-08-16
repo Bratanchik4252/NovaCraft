@@ -3257,8 +3257,6 @@ main {
 
 .shop-cmd-desc { color: var(--muted); min-width: 0; font-size: 14px; }
 
-.shop-cmd .shop-from { margin-left: auto; }
-
 /* Пункт-текст без команды (заголовок/примечание) */
 .shop-cmd.text { background: transparent; border-style: dashed; }
 

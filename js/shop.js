@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return (p && p.color) || 'var(--info)';
   }
 
-  // { own: [{cmd, desc, from|null}], locked: [{cmd, desc, from}] }
+  // { own: [{cmd, desc}], locked: [{cmd, desc, from}] }
   // own — команды этой привилегии и всех нижестоящих (по порядку списка);
   // locked — команды привилегий выше по старшинству, под замком «Доступно от X».
   // Замки считаются по ПОЗИЦИИ в отсортированном списке (hierarchy/sort),
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (i <= myIdx) {
           if (seen.has(key)) continue;
           seen.add(key);
-          own.push({ cmd: c.cmd, desc: c.desc, from: i < myIdx ? p.name : null });
+          own.push({ cmd: c.cmd, desc: c.desc });
         } else {
           if (seen.has(key) || lockedSeen.has(key)) continue;
           lockedSeen.add(key);
@@ -322,7 +322,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="shop-cmd${c.cmd ? '' : ' text'}">
         ${c.cmd ? `<code class="shop-cmd-code">${MC.esc(c.cmd)}</code>` : ''}
         <span class="shop-cmd-desc${c.cmd ? '' : ' text-main'}">${c.desc ? MC.esc(c.desc) : ''}</span>
-        ${c.from ? `<span class="shop-from">от ${MC.esc(c.from)}</span>` : ''}
       </div>`).join('');
 
     const lockRows = eff.locked.map(c => `
