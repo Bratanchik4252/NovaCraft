@@ -33,7 +33,7 @@
           <h3>Правила проекта</h3>
           <p class="text-muted">Действуют на всех серверах проекта NOVACRAFT.</p>
           <div class="acc-host">
-          <div class="acc-item open">
+          <div class="acc-item">
             <button class="acc-head" type="button">
               <span class="acc-num">1</span>
               <span>Общие правила</span>
@@ -100,10 +100,10 @@
           <h3>Правила серверов</h3>
           <p class="text-muted">Дополняют общие правила проекта на отдельных серверах.</p>
           <div class="acc-host">
-          <div class="acc-item open">
+          <div class="acc-item">
             <button class="acc-head" type="button">
               <span class="acc-num">1</span>
-              <span>Общие правила серверов</span>
+              <span>Общие правила проекта</span>
               <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div class="acc-body">
@@ -213,7 +213,7 @@
         var html = (items.length ? items : DEFAULT_RULES[panelId === 'panel-rules-project' ? 'project' : 'servers'])
           .map(function (r, i) {
             var lines = String(r.text || '').split('\n').map(escText).join('<br>');
-            return '<div class="acc-item' + (i === 0 ? ' open' : '') + '">' +
+            return '<div class="acc-item">' +
               '<button class="acc-head" type="button">' +
               '<span class="acc-num">' + (i + 1) + '</span>' +
               '<span>' + escText(r.title) + '</span>' +
