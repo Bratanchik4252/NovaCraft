@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selected = null;    // выбранный сервер (имя)
   let selectedPrivId = null; // id выбранной привилегии (квадрата)
   let currentBuy = null;  // { priv, months, forever, total }
-  const DURATIONS = [1, 3, 6, 12];
+  const DURATIONS = [1, 3];
 
   // ---------- Загрузка данных (облако / localStorage) ----------
   function lsTable(key) {
@@ -164,15 +164,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Цена с учётом скидки: { total (итог), base (без скидки), pct }
   // У каждого срока своя цена (задаётся в админке, без пересчёта): 1 мес —
-  // price_rub, 3 мес — price_3, 6 мес — price_6, 12 мес — price_12,
-  // навсегда — price_forever.
+  // price_rub, 3 мес — price_3, навсегда — price_forever.
   function priceFor(priv, months, forever) {
     const pct = discountPct(priv.name);
     let base;
     if (forever) base = Number(priv.price_forever) || 0;
     else if (months === 3) base = Number(priv.price_3) || 0;
-    else if (months === 6) base = Number(priv.price_6) || 0;
-    else if (months === 12) base = Number(priv.price_12) || 0;
     else base = Number(priv.price_rub) || 0;
     const total = Math.round(base * (100 - pct) / 100);
     return { total, base, pct };
@@ -354,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const priceKey = m === 1 ? 'price_rub' : 'price_' + m;
       const zero = !(Number(priv[priceKey]) || 0);
       return `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" data-forever="0" type="button"
-        ${zero ? 'disabled' : ''}>${m} мес${m === 12 ? ' (год)' : ''}</button>`;
+        ${zero ? 'disabled' : ''}>${m} мес</button>`;
     }).join('') +
     `<button class="os-tab" data-m="0" data-forever="1" type="button" ${foreverPrice <= 0 ? 'disabled' : ''}>Навсегда</button>`;
 

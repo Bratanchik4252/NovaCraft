@@ -523,14 +523,12 @@
         },
         privileges: {
           label: 'Привилегия',
-          columns: [['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', '1 мес'], ['price3Text', '3 мес'], ['price6Text', '6 мес'], ['price12Text', '12 мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
+          columns: [['name', 'Название'], ['hierarchy', 'Старшинство'], ['priceText', '1 мес'], ['price3Text', '3 мес'], ['priceForeverText', 'Навсегда'], ['enabled', 'Продаётся']],
           fields: [
             { key: 'name', label: 'Название привилегии (глобальное; набор фиксированный: VIP, PREMIUM, GRAND, DELUXE, LEGEND)', type: 'text', required: true },
             { key: 'hierarchy', label: 'Старшинство (чем больше — тем топовее; команды более топовых привилегий в магазине под замком)', type: 'number' },
             { key: 'price_rub', label: 'Цена за 1 месяц (рубли)', type: 'number' },
             { key: 'price_3', label: 'Цена за 3 месяца (рубли)', type: 'number' },
-            { key: 'price_6', label: 'Цена за 6 месяцев (рубли)', type: 'number' },
-            { key: 'price_12', label: 'Цена за 12 месяцев — год (рубли)', type: 'number' },
             { key: 'price_forever', label: 'Цена «навсегда» (рубли)', type: 'number' },
             { key: 'color', label: 'Цвет квадрата привилегии', type: 'color' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
@@ -986,8 +984,6 @@
         if (c === 'kitsCount') return Array.isArray(r.kits) ? r.kits.length + ' шт.' : '0 шт.';
         if (c === 'priceText') return Number(r.price_rub) ? Number(r.price_rub) + ' ₽' : '—';
         if (c === 'price3Text') return Number(r.price_3) ? Number(r.price_3) + ' ₽' : '—';
-        if (c === 'price6Text') return Number(r.price_6) ? Number(r.price_6) + ' ₽' : '—';
-        if (c === 'price12Text') return Number(r.price_12) ? Number(r.price_12) + ' ₽' : '—';
         if (c === 'priceForeverText') return Number(r.price_forever) ? Number(r.price_forever) + ' ₽' : '—';
         if (c === 'scopeText') return r.scope === 'privilege' ? 'На привилегию' : 'Глобальная';
         if (c === 'percentText') return r.percent != null ? r.percent + '%' : '—';
