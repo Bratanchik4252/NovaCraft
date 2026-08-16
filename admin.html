@@ -76,6 +76,7 @@
         <div class="cab-tab" data-tab="kits" style="cursor:pointer">Киты</div>
         <div class="cab-tab" data-tab="discounts" style="cursor:pointer">Скидки</div>
         <div class="cab-tab" data-tab="shop" style="cursor:pointer">Магазин</div>
+        <div class="cab-tab" data-tab="privs" style="cursor:pointer">Привилегии</div>
       </aside>
 
       <section>
@@ -346,6 +347,36 @@
           </div>
         </div>
 
+        <!-- ============ ПРИВИЛЕГИИ ИГРОКОВ (снятие активных) ============ -->
+        <div class="cab-panel" id="panel-privs">
+          <h3>Привилегии игроков</h3>
+          <p class="text-muted">
+            Найди игрока и сними у него активные привилегии. Снимается конкретная
+            запись (привилегия + сервер). Изменение записывается в историю игрока
+            и приходит ему уведомлением.
+          </p>
+          <div class="glass cab-card">
+            <div class="field">
+              <label for="priv-query">Ник игрока</label>
+              <input id="priv-query" placeholder="Например: BuShiZm">
+            </div>
+            <button class="btn btn-sm" id="priv-find" type="button">Найти</button>
+            <span class="error-msg" id="priv-find-status" style="display:block;margin-top:10px"></span>
+
+            <div id="priv-found" style="display:none;margin-top:14px">
+              <div class="adm-found-user">
+                <span id="priv-found-avatar" class="account-avatar account-letter"></span>
+                <div>
+                  <div id="priv-found-name" style="font-weight:800"></div>
+                  <div class="text-muted" style="font-size:12px" id="priv-found-count"></div>
+                </div>
+              </div>
+              <div id="priv-list" style="margin-top:12px"></div>
+              <span class="error-msg" id="priv-set-status" style="display:block;margin-top:10px"></span>
+            </div>
+          </div>
+        </div>
+
       </section>
     </div>
   </main>
@@ -399,7 +430,7 @@
       // ---------- Вкладки ----------
       // Минимальный уровень для каждой вкладки: 1 — хелпер (только обращения),
       // 2 — администратор (всё, кроме уровней), 3 — создатель (всё).
-      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2, kits: 2, discounts: 2, shop: 2 };
+      const TAB_MIN = { level: 3, servers: 2, bans: 2, tickets: 1, team: 2, rules: 2, prefixes: 2, kits: 2, discounts: 2, shop: 2, privs: 2 };
       const tabs = Array.from(panel.querySelectorAll('.cab-tab'));
       tabs.forEach(tab => {
         if (myLevel < (TAB_MIN[tab.dataset.tab] ?? 9)) tab.style.display = 'none';
@@ -1392,6 +1423,76 @@
         status.style.color = 'var(--success)';
         status.textContent = 'Баланс «' + foundBalTarget.name + '»: ' + (Number(res.balance) || 0) + ' ₽';
         document.getElementById('bal-found-balance').textContent = 'Баланс: ' + (Number(res.balance) || 0) + ' ₽';
+      });
+
+      // ============================================================
+      // Привилегии игроков: просмотр и снятие активных (уровень 2+)
+      // ============================================================
+      let foundPrivTarget = null;
+
+      function privExpireText(p) {
+        if (p.expiresAt == null) return 'навсегда';
+        if (Number(p.expiresAt) > Date.now()) return 'до ' + new Date(Number(p.expiresAt)).toLocaleDateString('ru-RU');
+        return 'истекла (' + new Date(Number(p.expiresAt)).toLocaleDateString('ru-RU') + ')';
+      }
+
+      function renderPrivList() {
+        const list = document.getElementById('priv-list');
+        const count = document.getElementById('priv-found-count');
+        const arr = (foundPrivTarget && Array.isArray(foundPrivTarget.privileges)) ? foundPrivTarget.privileges : [];
+        count.textContent = 'Активных записей: ' + arr.length;
+        if (!arr.length) {
+          list.innerHTML = '<p class="text-muted" style="font-size:13px;padding:8px 0">У игрока нет привилегий.</p>';
+          return;
+        }
+        list.innerHTML = arr.map((p, i) => `
+          <div class="adm-priv-row">
+            <div class="adm-priv-info">
+              <b>${MC.esc(String(p.name || ''))}</b>
+              <span class="adm-priv-server">${MC.esc(String(p.server || '—'))}</span>
+              <div class="text-muted" style="font-size:12px">${privExpireText(p)}</div>
+            </div>
+            <button class="btn btn-sm btn-danger" type="button" data-revoke="${i}">Снять</button>
+          </div>`).join('');
+        list.querySelectorAll('[data-revoke]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const p = arr[Number(btn.dataset.revoke)];
+            if (!p) return;
+            if (!confirm('Снять привилегию «' + p.name + '» (сервер «' + (p.server || '—') + '») у игрока ' + foundPrivTarget.name + '?')) return;
+            revokePrivilege(p);
+          });
+        });
+      }
+
+      async function revokePrivilege(p) {
+        const status = document.getElementById('priv-set-status');
+        status.textContent = '';
+        const res = await DB.adminRevokePrivilege(foundPrivTarget.name, p.name, p.server || '—');
+        if (!res.ok) { status.style.color = ''; status.textContent = 'Ошибка: ' + res.error; return; }
+        foundPrivTarget.privileges = Array.isArray(res.privileges) ? res.privileges : [];
+        status.style.color = 'var(--success)';
+        status.textContent = 'Привилегия «' + p.name + '» снята.';
+        renderPrivList();
+      }
+
+      document.getElementById('priv-find')?.addEventListener('click', async () => {
+        const q = document.getElementById('priv-query').value.trim();
+        const status = document.getElementById('priv-find-status');
+        status.textContent = '';
+        document.getElementById('priv-set-status').textContent = '';
+        if (!q) { status.textContent = 'Введите ник игрока'; return; }
+        const res = await DB.adminPrivilegesOf(q);
+        if (!res) {
+          status.textContent = 'Аккаунт не найден.';
+          document.getElementById('priv-found').style.display = 'none';
+          foundPrivTarget = null;
+          return;
+        }
+        foundPrivTarget = { name: res.name, privileges: Array.isArray(res.privileges) ? res.privileges : [] };
+        document.getElementById('priv-found-name').textContent = res.name;
+        document.getElementById('priv-found-avatar').textContent = (res.name[0] || '?').toUpperCase();
+        document.getElementById('priv-found').style.display = '';
+        renderPrivList();
       });
     });
   </script>

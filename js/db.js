@@ -889,6 +889,74 @@
         : { ok: false, error: (data && data.error) || 'Ошибка' };
     },
 
+    // Активные привилегии игрока (админка, вкладка «Привилегии», уровень 2+).
+    // Возвращает { name, privileges } или null. Облако: чтение профиля
+    // (RLS select разрешён всем), localStorage: поиск в mc:auth.
+    async adminPrivilegesOf(query) {
+      if (!this.configured) {
+        let data = null;
+        try { data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}'); } catch (e) {}
+        const q = String(query || '').trim().toLowerCase();
+        const u = data && data.users ? data.users.find(x => String(x.name).toLowerCase() === q) : null;
+        if (!u) return null;
+        return { name: u.name, privileges: Array.isArray(u.privileges) ? u.privileges : [] };
+      }
+      const q = String(query || '').trim();
+      if (!q) return null;
+      let result = null;
+      const byId = await client.from('profiles').select('name,privileges').eq('id', q).maybeSingle();
+      if (byId.data) result = byId.data;
+      if (!result) {
+        const byName = await client.from('profiles').select('name,privileges').ilike('name', q).maybeSingle();
+        if (byName.data) result = byName.data;
+      }
+      return result
+        ? { name: result.name, privileges: Array.isArray(result.privileges) ? result.privileges : [] }
+        : null;
+    },
+
+    // Снять привилегию у игрока (админка, уровень 2+).
+    // В облаке — через RPC admin_revoke_privilege (security definer,
+    // проверяет is_staff), в localStorage-режиме — напрямую в mc:auth.
+    // Снимается конкретная запись: название + сервер.
+    async adminRevokePrivilege(targetName, privName, server) {
+      if (!this.configured) {
+        try {
+          const auth = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
+          const u = auth.users.find(x => String(x.name).toLowerCase() === String(targetName).toLowerCase());
+          if (!u) return { ok: false, error: 'Аккаунт не найден' };
+          if (!Array.isArray(u.privileges)) u.privileges = [];
+          const before = u.privileges.length;
+          u.privileges = u.privileges.filter(p =>
+            !(String(p.name || '') === String(privName)
+              && String(p.server || '—') === String(server || '—')));
+          if (u.privileges.length === before) return { ok: false, error: 'Активная привилегия не найдена' };
+          if (!Array.isArray(u.transactions)) u.transactions = [];
+          u.transactions.unshift({
+            type: 'out',
+            title: 'Снятие привилегии: ' + privName,
+            server: server || '—',
+            amount: 0,
+            unit: 'rub',
+            date: new Date().toLocaleDateString('ru-RU'),
+          });
+          localStorage.setItem('mc:auth', JSON.stringify(auth));
+          return { ok: true, privileges: u.privileges };
+        } catch (e) {
+          return { ok: false, error: 'Ошибка: ' + e.message };
+        }
+      }
+      const { data, error } = await client.rpc('admin_revoke_privilege', {
+        target_name: String(targetName),
+        p_priv: String(privName),
+        p_server: String(server || '—'),
+      });
+      if (error) return { ok: false, error: error.message };
+      return data && data.ok !== false
+        ? { ok: true, privileges: data.privileges || [] }
+        : { ok: false, error: (data && data.error) || 'Ошибка' };
+    },
+
     // Кэш цветов префиксов (ник → цвет) для шапки и профилей.
     // Красит ник только НАДЕТЫЙ префикс (active_prefix) с приоритетом > 0 —
     // он идёт поверх цвета привилегии. Перестраивается после выдачи/смены.

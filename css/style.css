@@ -1648,6 +1648,33 @@ main {
   background: var(--glass-bg);
 }
 
+.adm-priv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-hover);
+}
+
+.adm-priv-row + .adm-priv-row { margin-top: 8px; }
+
+.adm-priv-info { min-width: 0; }
+
+.adm-priv-server {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(122, 162, 255, 0.12);
+  border: 1px solid rgba(122, 162, 255, 0.35);
+  color: var(--info);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* ---------- Колокольчик уведомлений ---------- */
 .bell-wrap { position: relative; }
 

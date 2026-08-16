@@ -712,6 +712,71 @@ $$;
 grant execute on function public.purchase_privilege(bigint, integer, text, boolean) to authenticated;
 
 -- ==========================================================================
+-- RPC: снятие привилегии у игрока (админка, вкладка «Привилегии»)
+-- security definer — обычный игрок не может менять чужой профиль (RLS).
+-- Только персонал (admin_level >= 2, is_staff). Снимается конкретная
+-- запись привилегии (название + сервер). Пишется транзакция и уведомление.
+-- ==========================================================================
+create or replace function public.admin_revoke_privilege(target_name text, p_priv text, p_server text)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  me        uuid := auth.uid();
+  trow      public.profiles%rowtype;
+  cur       jsonb;
+  new_privs jsonb;
+  n_before  integer;
+  trans     jsonb;
+begin
+  if me is null then
+    return jsonb_build_object('ok', false, 'error', 'Войди в аккаунт');
+  end if;
+  if not public.is_staff() then
+    return jsonb_build_object('ok', false, 'error', 'Недостаточно прав');
+  end if;
+
+  select * into trow from public.profiles where lower(name) = lower(btrim(target_name)) limit 1;
+  if trow is null then
+    return jsonb_build_object('ok', false, 'error', 'Аккаунт не найден');
+  end if;
+
+  cur := coalesce(trow.privileges, '[]'::jsonb);
+  select count(*)::int into n_before
+    from jsonb_array_elements(cur) e
+   where e->>'name' = p_priv and coalesce(e->>'server', '—') = p_server;
+  if n_before = 0 then
+    return jsonb_build_object('ok', false, 'error', 'Активная привилегия не найдена');
+  end if;
+
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into new_privs
+    from jsonb_array_elements(cur) e
+   where not (e->>'name' = p_priv and coalesce(e->>'server', '—') = p_server);
+
+  update public.profiles set privileges = new_privs where id = trow.id;
+
+  trans := coalesce(trow.transactions, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'type', 'out',
+    'title', 'Снятие привилегии: ' || p_priv,
+    'server', p_server,
+    'amount', 0,
+    'unit', 'rub',
+    'date', to_char(now(), 'DD.MM.YYYY')
+  ));
+  update public.profiles set transactions = trans where id = trow.id;
+
+  insert into public.notifications (user_id, type, title, body, url)
+  values (trow.id, 'privilege', 'Снятие привилегии',
+          'Привилегия «' || p_priv || '» снята на сервере «' || p_server || '».',
+          'profile.html');
+
+  return jsonb_build_object('ok', true, 'privileges', new_privs);
+end;
+$$;
+grant execute on function public.admin_revoke_privilege(text, text, text) to authenticated;
+
+-- ==========================================================================
 -- RPC: начисление баланса по донату (вызывает ТОЛЬКО вебхук с service_role)
 -- Идемпотентно: одна operation_id начисляется один раз.
 -- ==========================================================================
