@@ -255,18 +255,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ---------- Владение ----------
+  // Привилегию можно покупать повторно сколько угодно раз — записи складываются,
+  // в бейдже показываем количество покупок («Куплена ×2 · до 05.09.2026»).
   function ownedInfo(priv) {
     const user = currentUser();
     if (!user || !Array.isArray(user.privileges)) return null;
-    const p = user.privileges.find(x => String(x.name) === String(priv.name)
+    const list = user.privileges.filter(x => String(x.name) === String(priv.name)
       && (String(x.server) === String(selected) || x.server == null || String(x.server) === '—'));
-    if (!p) return null;
-    if (p.expiresAt == null) return { forever: true, label: 'Куплена навсегда' };
-    if (Number(p.expiresAt) > Date.now()) {
-      const d = new Date(Number(p.expiresAt)).toLocaleDateString('ru-RU');
-      return { forever: false, label: 'До ' + d };
-    }
-    return null;
+    if (!list.length) return null;
+    const active = list.find(p => p.expiresAt == null || Number(p.expiresAt) > Date.now());
+    if (!active) return null;
+    const x = list.length > 1 ? ' ×' + list.length : '';
+    if (active.expiresAt == null) return { forever: true, label: 'Куплена' + x + ' · навсегда' };
+    const d = new Date(Number(active.expiresAt)).toLocaleDateString('ru-RU');
+    return { forever: false, label: 'Куплена' + x + ' · до ' + d };
   }
 
   // ---------- Квадраты привилегий ----------
@@ -388,8 +390,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     <div class="shop-buyblock">
       <div class="shop-dur-row">${durHtml}</div>
-      <button class="btn btn-primary shop-buy" type="button" ${owned ? 'disabled' : ''}>
-        ${owned ? 'Куплена' : 'Купить за <span class="shop-buy-total">' + fmtRub(first.total) + '</span>'}
+      <button class="btn btn-primary shop-buy" type="button">
+        Купить за <span class="shop-buy-total">' + fmtRub(first.total) + '</span>
       </button>
     </div>
 

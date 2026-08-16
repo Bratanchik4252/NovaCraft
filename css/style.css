@@ -2320,6 +2320,7 @@ main {
 .acc-body {
   display: grid;
   grid-template-rows: 0fr;
+  min-height: 0;
   transition: grid-template-rows 0.32s var(--ease);
 }
 
@@ -2333,6 +2334,26 @@ main {
   font-size: 15px;
   line-height: 1.6;
 }
+
+/* Аккордеон привилегий в профиле игрока: без левого отступа под номер */
+#player-priv .acc-body-inner { padding-left: 22px; }
+
+.priv-dot {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--info, #4d7dff);
+}
+
+.priv-head-server {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.priv-x { opacity: 0.65; font-size: 0.85em; }
 
 /* ==========================================================================
    39. Префиксы
