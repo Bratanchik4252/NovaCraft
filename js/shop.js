@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (rows.length) {
       return rows
         .map(c => ({ cmd: String(c.cmd || '').trim(), desc: String(c.description || '').trim() }))
-        .filter(x => x.cmd);
+        .filter(x => x.cmd || x.desc);
     }
     const legacy = Array.isArray(priv.commands) ? priv.commands : [];
     return legacy
@@ -209,23 +209,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // { own: [{cmd, desc, from|null}], locked: [{cmd, desc, from}] }
-  // own — команды этой привилегии + всех нижестоящих (старшинство меньше);
+  // own — команды этой привилегии и всех нижестоящих (по порядку списка);
   // locked — команды привилегий выше по старшинству, под замком «Доступно от X».
+  // Замки считаются по ПОЗИЦИИ в отсортированном списке (hierarchy/sort),
+  // поэтому у самой топовой привилегии (LEGEND) замков нет вообще,
+  // у следующей (DELUXE) замок только на LEGEND и так далее.
   function buildCommands(priv) {
     const list = sortedPrivs();
-    const myHier = Number(priv.hierarchy) || 0;
+    const myIdx = list.findIndex(p => String(p.id) === String(priv.id));
     const seen = new Set();
     const lockedSeen = new Set();
     const own = [];
     const locked = [];
-    for (const p of list) {
-      const h = Number(p.hierarchy) || 0;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
       for (const c of cmdsForPriv(p)) {
-        const key = String(c.cmd).toLowerCase();
-        if (h <= myHier) {
+        const key = c.cmd
+          ? String(c.cmd).toLowerCase()
+          : ('text:' + String(c.desc || '').trim().toLowerCase());
+        if (i <= myIdx) {
           if (seen.has(key)) continue;
           seen.add(key);
-          own.push({ cmd: c.cmd, desc: c.desc, from: h < myHier ? p.name : null });
+          own.push({ cmd: c.cmd, desc: c.desc, from: i < myIdx ? p.name : null });
         } else {
           if (seen.has(key) || lockedSeen.has(key)) continue;
           lockedSeen.add(key);
@@ -314,20 +319,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const foreverPrice = Number(priv.price_forever) || 0;
 
     const cmdRows = eff.own.map(c => `
-      <div class="shop-cmd">
-        <code class="shop-cmd-code">${MC.esc(c.cmd)}</code>
-        <span class="shop-cmd-desc">${c.desc ? MC.esc(c.desc) : ''}</span>
+      <div class="shop-cmd${c.cmd ? '' : ' text'}">
+        ${c.cmd ? `<code class="shop-cmd-code">${MC.esc(c.cmd)}</code>` : ''}
+        <span class="shop-cmd-desc${c.cmd ? '' : ' text-main'}">${c.desc ? MC.esc(c.desc) : ''}</span>
         ${c.from ? `<span class="shop-from">от ${MC.esc(c.from)}</span>` : ''}
       </div>`).join('');
 
     const lockRows = eff.locked.map(c => `
-      <div class="shop-cmd locked">
+      <div class="shop-cmd locked${c.cmd ? '' : ' text'}">
         <svg class="shop-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        <code class="shop-cmd-code">${MC.esc(c.cmd)}</code>
-        <span class="shop-cmd-desc">${c.desc ? MC.esc(c.desc) : ''}</span>
+        ${c.cmd ? `<code class="shop-cmd-code">${MC.esc(c.cmd)}</code>` : ''}
+        <span class="shop-cmd-desc${c.cmd ? '' : ' text-main'}">${c.desc ? MC.esc(c.desc) : ''}</span>
         <span class="shop-lock-note" style="color:${MC.esc(privColor(c.from))}">Доступно от ${MC.esc(c.from)}</span>
       </div>`).join('');
 

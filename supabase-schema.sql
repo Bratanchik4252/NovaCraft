@@ -1016,11 +1016,12 @@ create table if not exists public.privilege_commands (
   id        bigint generated always as identity primary key,
   privilege text not null,                   -- название привилегии (глобальное)
   server    text not null,                   -- сервер
-  cmd       text not null,                   -- команда, напр. /fly
+  cmd       text not null default '',        -- команда, напр. /fly; пусто — пункт-текст (заголовок/примечание)
   description text not null default '',      -- описание команды (не desc — резерв. слово)
-  sort      integer not null default 0,
-  unique (privilege, server, cmd)
+  sort      integer not null default 0
 );
+-- unique (privilege, server, cmd) убран: текстовых пунктов (cmd='') может быть несколько
+alter table public.privilege_commands drop constraint if exists privilege_commands_privilege_server_cmd_key;
 create index if not exists privilege_commands_server_idx
   on public.privilege_commands (server, privilege, sort);
 

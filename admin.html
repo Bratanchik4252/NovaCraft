@@ -563,7 +563,7 @@
             { key: 'price_forever', label: 'Цена «навсегда» (рубли)', type: 'number' },
             { key: 'color', label: 'Цвет квадрата привилегии', type: 'color' },
             { key: 'description', label: 'Описание (что даёт привилегия)', type: 'textarea' },
-            { key: 'commands', label: 'Команды привилегии (свои на каждом сервере)', type: 'commands', hint: 'У привилегии свои команды на каждом сервере. Выбери сервер сверху и добавь пары «команда — описание».' },
+            { key: 'commands', label: 'Команды привилегии (свои на каждом сервере)', type: 'commands', hint: 'У привилегии свои команды на каждом сервере. Выбери сервер сверху и добавь пары «команда — описание». Если оставить команду пустой — выведется просто текст (заголовок или примечание).' },
             { key: 'sort', label: 'Порядок (sort)', type: 'number' },
             { key: 'enabled', label: 'Продаётся в магазине', type: 'checkbox' },
           ],
@@ -703,7 +703,7 @@
         return [...host.querySelectorAll('.pairlist-row')].map(r => {
           const cmd = r.querySelector('.pair-cmd').value.trim();
           const desc = r.querySelector('.pair-desc').value.trim();
-          return cmd ? { cmd, desc } : null;
+          return (cmd || desc) ? { cmd, desc } : null;
         }).filter(Boolean);
       }
 
@@ -722,8 +722,8 @@
       function pairRowHtml(cmd, desc) {
         return `<div class="pairlist-row">
           <button type="button" class="taglist-minus" title="Удалить">−</button>
-          <input type="text" class="pair-cmd" placeholder="/команда" value="${MC.esc(cmd || '')}">
-          <input type="text" class="pair-desc" placeholder="Что делает команда" value="${MC.esc(desc || '')}">
+          <input type="text" class="pair-cmd" placeholder="команда, напр. /fly (пусто — пункт-текст)" value="${MC.esc(cmd || '')}">
+          <input type="text" class="pair-desc" placeholder="Что делает команда / текст пункта" value="${MC.esc(desc || '')}">
         </div>`;
       }
 

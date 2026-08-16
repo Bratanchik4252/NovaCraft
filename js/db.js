@@ -723,11 +723,11 @@
         .eq('server', server);
       if (delErr) return { ok: false, error: delErr.message };
       const rows = (Array.isArray(pairs) ? pairs : [])
-        .filter(p => p && String(p.cmd || '').trim())
+        .filter(p => p && (String(p.cmd || '').trim() || String(p.desc || '').trim()))
         .map((p, i) => ({
           privilege: String(privilege),
           server: String(server),
-          cmd: String(p.cmd).trim(),
+          cmd: String(p.cmd || '').trim(),
           description: String(p.desc || '').trim(),
           sort: i,
         }));

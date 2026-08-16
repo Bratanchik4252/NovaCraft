@@ -3234,30 +3234,39 @@ main {
 .shop-cmd {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
   background: var(--glass-bg-hover);
   border: 1px solid var(--glass-border);
-  font-size: 13.5px;
+  font-size: 15px;
   line-height: 1.5;
 }
 
 .shop-cmd-code {
   font-family: 'Consolas', 'Menlo', monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   background: rgba(0, 0, 0, 0.25);
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
   white-space: nowrap;
 }
 
-.shop-cmd-desc { color: var(--muted); min-width: 0; }
+.shop-cmd-desc { color: var(--muted); min-width: 0; font-size: 14px; }
 
 .shop-cmd .shop-from { margin-left: auto; }
+
+/* Пункт-текст без команды (заголовок/примечание) */
+.shop-cmd.text { background: transparent; border-style: dashed; }
+
+.shop-cmd.text .shop-cmd-desc.text-main {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 14.5px;
+}
 
 /* Замок: команды привилегий выше по старшинству */
 .shop-cmd.locked { opacity: 0.55; }
