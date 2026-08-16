@@ -163,11 +163,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Цена с учётом скидки: { total (итог), base (без скидки), pct }
+  // У каждого срока своя цена (задаётся в админке, без пересчёта): 1 мес —
+  // price_rub, 3 мес — price_3, 6 мес — price_6, 12 мес — price_12,
+  // навсегда — price_forever.
   function priceFor(priv, months, forever) {
     const pct = discountPct(priv.name);
-    const base = forever
-      ? (Number(priv.price_forever) || 0)
-      : ((Number(priv.price_rub) || 0) * months);
+    let base;
+    if (forever) base = Number(priv.price_forever) || 0;
+    else if (months === 3) base = Number(priv.price_3) || 0;
+    else if (months === 6) base = Number(priv.price_6) || 0;
+    else if (months === 12) base = Number(priv.price_12) || 0;
+    else base = Number(priv.price_rub) || 0;
     const total = Math.round(base * (100 - pct) / 100);
     return { total, base, pct };
   }
@@ -282,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', () => {
         selectedPrivId = btn.dataset.id;
         renderSquares();
-        renderDetail(true);
+        renderDetail();
       });
     });
   }
@@ -292,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return privileges.find(p => String(p.id) === String(selectedPrivId)) || sortedPrivs()[0] || null;
   }
 
-  function renderDetail(scrollTo) {
+  function renderDetail() {
     const priv = selectedPriv();
     if (!priv) { detailHost.innerHTML = ''; return; }
     const color = priv.color || 'var(--info)';
@@ -344,10 +350,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="shop-kits-grid">${kitCards}</div>
       </section>` : '';
 
-    const durHtml = DURATIONS.map(m =>
-      `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" data-forever="0" type="button">${m} мес${m === 12 ? ' (год)' : ''}</button>`
-    ).join('') +
-    `<button class="os-tab" data-m="0" data-forever="1" type="button">Навсегда${foreverPrice ? '' : ''}</button>`;
+    const durHtml = DURATIONS.map(m => {
+      const priceKey = m === 1 ? 'price_rub' : 'price_' + m;
+      const zero = !(Number(priv[priceKey]) || 0);
+      return `<button class="os-tab${m === 1 ? ' active' : ''}" data-m="${m}" data-forever="0" type="button"
+        ${zero ? 'disabled' : ''}>${m} мес${m === 12 ? ' (год)' : ''}</button>`;
+    }).join('') +
+    `<button class="os-tab" data-m="0" data-forever="1" type="button" ${foreverPrice <= 0 ? 'disabled' : ''}>Навсегда</button>`;
 
     detailHost.innerHTML = `
   <article class="shop-card glass" data-id="${MC.esc(priv.id)}" data-months="1" data-forever="0" style="--pcol:${MC.esc(color)}">
@@ -390,8 +399,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     detailHost.querySelector('.shop-buy').addEventListener('click', () => openBuyModal());
-
-    if (scrollTo) detailHost.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function updateBuyBlock(card) {

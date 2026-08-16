@@ -3060,12 +3060,13 @@ main {
    Магазин v3: привилегии списком, блок покупки перед командами, замки
    ========================================================================== */
 
-/* Квадраты привилегий — сетка; по клику ниже деталь */
+/* Квадраты привилегий — ровно 5 в одну строку (набор фиксированный);
+   по клику ниже деталь */
 .shop-priv-squares {
   margin-top: 26px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .shop-square {
@@ -3169,6 +3170,7 @@ main {
 
 .shop-dur { margin-top: 14px; justify-content: stretch; }
 .shop-dur .os-tab { flex: 1; padding: 8px 6px; font-size: 13px; }
+.shop-dur .os-tab:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .shop-buy { margin-top: 14px; width: 100%; font-size: 15px; }
 
@@ -3275,6 +3277,13 @@ main {
 
 /* Скрываем остатки v2 */
 .shop-slider, .shop-slide-btn, .shop-tabs { display: none; }
+
+@media (max-width: 600px) {
+  .shop-priv-squares { gap: 8px; }
+  .shop-square { aspect-ratio: 4 / 3; padding: 6px; gap: 4px; border-radius: 12px; }
+  .shop-square .sq-name { font-size: 11px; }
+  .shop-square .sq-price { font-size: 9px; }
+}
 
 
 .shop-card {

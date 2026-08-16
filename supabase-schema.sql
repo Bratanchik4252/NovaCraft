@@ -507,6 +507,9 @@ create table if not exists public.privileges (
   name          text not null,                -- название привилегии (VIP, Premium, Dragon, ...)
   hierarchy     integer not null default 0,   -- старшинство: чем больше, тем топовее
   price_rub     numeric not null default 0,   -- цена за 1 месяц, рубли
+  price_3       numeric not null default 0,   -- цена за 3 месяца, рубли (своя, без пересчёта)
+  price_6       numeric not null default 0,   -- цена за 6 месяцев, рубли (своя)
+  price_12      numeric not null default 0,   -- цена за 12 месяцев (год), рубли (своя)
   price_forever numeric not null default 0,   -- цена «навсегда», рубли
   color         text,                         -- hex-цвет блока привилегии
   description   text not null default '',
@@ -514,6 +517,9 @@ create table if not exists public.privileges (
   enabled       boolean not null default true -- 1 — продаётся, 0 — скрыта из магазина
 );
 alter table public.privileges add column if not exists price_forever numeric not null default 0;
+alter table public.privileges add column if not exists price_3 numeric not null default 0;
+alter table public.privileges add column if not exists price_6 numeric not null default 0;
+alter table public.privileges add column if not exists price_12 numeric not null default 0;
 drop index if exists privileges_server_idx;
 create index if not exists privileges_global_idx on public.privileges (hierarchy, sort);
 
@@ -522,12 +528,12 @@ create index if not exists privileges_global_idx on public.privileges (hierarchy
 -- Именно эти 5 (не больше и не меньше): VIP, PREMIUM, GRAND, DELUXE, LEGEND.
 create unique index if not exists privileges_name_lower_idx on public.privileges (lower(name));
 
-insert into public.privileges (name, hierarchy, price_rub, price_forever, color, description, sort, enabled) values
-  ('VIP',    1, 0, 0, '#4dff88', 'Базовая привилегия: базовые команды и набор бонусов на сервере.', 1, true),
-  ('PREMIUM',2, 0, 0, '#7aa2ff', 'Расширенный набор команд и улучшенные бонусы.', 2, true),
-  ('GRAND',  3, 0, 0, '#b980ff', 'Продвинутая привилегия: ещё больше команд и возможностей.', 3, true),
-  ('DELUXE', 4, 0, 0, '#ffc83c', 'Премиальный набор: все команды и лучшие бонусы.', 4, true),
-  ('LEGEND', 5, 0, 0, '#ff5b5b', 'Топ-привилегия: абсолютно все команды и возможности проекта.', 5, true)
+insert into public.privileges (name, hierarchy, price_rub, price_3, price_6, price_12, price_forever, color, description, sort, enabled) values
+  ('VIP',    1, 0, 0, 0, 0, 0, '#4dff88', 'Базовая привилегия: базовые команды и набор бонусов на сервере.', 1, true),
+  ('PREMIUM',2, 0, 0, 0, 0, 0, '#7aa2ff', 'Расширенный набор команд и улучшенные бонусы.', 2, true),
+  ('GRAND',  3, 0, 0, 0, 0, 0, '#b980ff', 'Продвинутая привилегия: ещё больше команд и возможностей.', 3, true),
+  ('DELUXE', 4, 0, 0, 0, 0, 0, '#ffc83c', 'Премиальный набор: все команды и лучшие бонусы.', 4, true),
+  ('LEGEND', 5, 0, 0, 0, 0, 0, '#ff5b5b', 'Топ-привилегия: абсолютно все команды и возможности проекта.', 5, true)
 on conflict (lower(name)) do nothing;
 
 -- ---------- Ожидающие пополнения (связка DonatePay -> аккаунт) ----------
@@ -656,7 +662,15 @@ begin
     base := coalesce(priv.price_forever, 0);
     exp_at := null;
   else
-    base := coalesce(priv.price_rub, 0) * months;
+    if months = 3 then
+      base := coalesce(priv.price_3, 0);
+    elsif months = 6 then
+      base := coalesce(priv.price_6, 0);
+    elsif months = 12 then
+      base := coalesce(priv.price_12, 0);
+    else
+      base := coalesce(priv.price_rub, 0);
+    end if;
     exp_at := (extract(epoch from (now() + make_interval(months => months))) * 1000)::bigint;
   end if;
 
