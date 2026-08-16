@@ -230,8 +230,8 @@
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
 
-    // Аккордеон по группам «привилегия + сервер»: повторные покупки складываются
-    // («LEGEND ×2»). Группы закрыты по умолчанию, детали — внутри.
+    // Повторные покупки складываются в группу «привилегия + сервер» («LEGEND ×2»).
+    // Сами карточки — как раньше; аккордеоном сделан ВЕСЬ блок «Привилегии».
     const groups = new Map();
     visible.forEach(pr => {
       const key = String(pr.name) + '|' + String(pr.server);
@@ -239,7 +239,7 @@
       groups.get(key).push(pr);
     });
 
-    host.innerHTML = Array.from(groups.values()).map(list => {
+    const cardsHtml = Array.from(groups.values()).map(list => {
       const pr = list[0];
       const count = list.length;
       const expiredAll = list.every(e => e.expiresAt != null && Number(e.expiresAt) <= now);
@@ -251,6 +251,7 @@
       const forever = list.some(e => e.expiresAt == null);
       const maxExp = forever ? null : Math.max(...list.map(e => Number(e.expiresAt) || 0));
       const firstDate = list.reduce((a, e) => (a < (e.purchaseDate || '')) ? a : (e.purchaseDate || ''), list[0].purchaseDate || '');
+      const lastDate = list[list.length - 1].purchaseDate || firstDate;
       const total = (forever || maxExp == null) ? null : maxExp - parseRuDate(firstDate);
       const left = (forever || maxExp == null) ? null : Math.max(0, maxExp - now);
       const pct = forever ? 100 : (total > 0 ? Math.max(0, Math.min(100, (left / total) * 100)) : 100);
@@ -258,32 +259,33 @@
       const barStyle = color
         ? `style="width:${pct}%;background:linear-gradient(90deg,${color},${color}cc);box-shadow:0 0 12px ${color}"`
         : `style="width:${pct}%"`;
-      const dotStyle = color ? `style="background:${color}"` : '';
       return `
-        <div class="acc-item">
-          <button class="acc-head" type="button">
-            <span class="priv-dot" ${dotStyle}></span>
-            <span ${nameStyle}>${MC.esc(pr.name)}${xBadge}</span>
-            <span class="priv-head-server">${MC.esc(pr.server)}</span>
-            <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-          <div class="acc-body"><div class="acc-body-inner">
-            <div class="priv-card">
-              <div class="priv-name" ${nameStyle}>${MC.esc(pr.name)}${xBadge}${expiredAll ? ' <span class="badge badge-bad">истекла</span>' : ''}</div>
-              <div class="priv-meta">
-                <span>Сервер: <strong>${MC.esc(pr.server)}</strong></span>
-                <span>Куплено раз: <strong>${count}</strong></span>
-                <span>Срок: <strong>${forever ? 'Навсегда' : 'до ' + new Date(maxExp).toLocaleDateString('ru-RU')}</strong></span>
-              </div>
-              <div class="priv-bar"><div class="priv-bar-fill" ${barStyle}></div></div>
-              <div class="priv-days">${expiredAll ? 'Истекла' : (forever ? '&#10022; Бессрочная' : 'Осталось: ' + daysLeft + ' дн.')}</div>
-            </div>
-          </div></div>
+        <div class="priv-card">
+          <div class="priv-name" ${nameStyle}>${MC.esc(pr.name)}${xBadge}${expiredAll ? ' <span class="badge badge-bad">истекла</span>' : ''}</div>
+          <div class="priv-meta">
+            <span>Сервер: <strong>${MC.esc(pr.server)}</strong></span>
+            <span>Дата покупки: <strong>${MC.esc(lastDate)}</strong></span>
+            <span>Куплено раз: <strong>${count}</strong></span>
+            <span>Срок: <strong>${forever ? 'Навсегда' : 'до ' + new Date(maxExp).toLocaleDateString('ru-RU')}</strong></span>
+          </div>
+          <div class="priv-bar"><div class="priv-bar-fill" ${barStyle}></div></div>
+          <div class="priv-days">${expiredAll ? 'Истекла' : (forever ? '&#10022; Бессрочная' : 'Осталось: ' + daysLeft + ' дн.')}</div>
         </div>`;
     }).join('');
 
-    host.querySelectorAll('.acc-head').forEach(head => {
-      head.addEventListener('click', () => head.parentElement.classList.toggle('open'));
+    host.innerHTML = `
+      <div class="acc-item">
+        <button class="acc-head" type="button">
+          <span>Привилегии${groups.size ? ' (' + groups.size + ')' : ''}</span>
+          <svg class="acc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="acc-body"><div class="acc-body-inner">
+          ${cardsHtml}
+        </div></div>
+      </div>`;
+
+    host.querySelector('.acc-head').addEventListener('click', () => {
+      host.querySelector('.acc-item').classList.toggle('open');
     });
   }
 
