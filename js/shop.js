@@ -394,10 +394,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   </article>`;
 
     // Длительность / «навсегда»
-    detailHost.querySelectorAll('.shop-dur .os-tab').forEach(btn => {
+    detailHost.querySelectorAll('.shop-dur-row .os-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         const card = detailHost.querySelector('.shop-card');
-        const dur = card.querySelector('.shop-dur');
+        const dur = card.querySelector('.shop-dur-row');
         dur.querySelectorAll('.os-tab').forEach(b => b.classList.toggle('active', b === btn));
         card.dataset.forever = btn.dataset.forever === '1' ? '1' : '0';
         card.dataset.months = btn.dataset.forever === '1' ? 0 : (Number(btn.dataset.m) || 1);
