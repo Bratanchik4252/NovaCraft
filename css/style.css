@@ -780,7 +780,6 @@ tbody tr:hover {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
-  align-items: center;
   justify-content: center;
   padding: 24px;
   overflow-y: auto;
@@ -795,6 +794,7 @@ tbody tr:hover {
 }
 
 .modal {
+  margin: auto;
   width: 100%;
   max-width: 460px;
   background: var(--bg);
