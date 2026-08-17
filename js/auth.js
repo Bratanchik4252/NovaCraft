@@ -401,6 +401,50 @@
       return true;
     }
 
+    // ---------- Живая проверка почты (как у конкурентов) ----------
+    // Пока вводишь — сразу видно: формат сломан («Введите корректный email»)
+    // или у домена нет MX-записи («Такой почты не существует» — почта на
+    // таком домене физически не существует). MX проверяется через Google
+    // DNS-over-HTTPS (CORS разрешён). Если сеть недоступна — не блокируем.
+    const mxCache = {};
+    function emailDomainHasMx(email) {
+      const domain = String(email).split('@')[1] || '';
+      if (!domain) return Promise.resolve(null);
+      if (domain in mxCache) return Promise.resolve(mxCache[domain]);
+      return fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=MX',
+        { headers: { accept: 'application/dns-json' } })
+        .then(r => r.json())
+        .then(d => {
+          const answers = Array.isArray(d && d.Answer) ? d.Answer : [];
+          const hasMx = answers.some(a => Number(a.type) === 15);
+          mxCache[domain] = hasMx;
+          return hasMx;
+        })
+        .catch(() => null);
+    }
+    let emailLiveTimer = null;
+    function liveEmailCheck() {
+      clearTimeout(emailLiveTimer);
+      regEmailError.style.color = '';
+      const email = regEmail.value.trim();
+      if (!email) { regEmailError.textContent = ''; return; }
+      if (!validateEmail(email)) {
+        regEmailError.textContent = 'Введите корректный email';
+        return;
+      }
+      regEmailError.textContent = 'Проверяем…';
+      emailLiveTimer = setTimeout(async () => {
+        const hasMx = await emailDomainHasMx(email);
+        if (hasMx === null) { regEmailError.textContent = ''; return; } // сеть недоступна
+        if (!hasMx) {
+          regEmailError.textContent = 'Такой почты не существует';
+        } else {
+          regEmailError.textContent = '';
+        }
+      }, 600);
+    }
+    regEmail.addEventListener('input', liveEmailCheck);
+
     // Шаг 1: получить код на почту (облако) / проверить, что почта свободна (локально).
     // Повторная отправка кода — раз в 60 секунд (лимит Supabase).
     function startResendTimer(seconds) {
@@ -429,6 +473,14 @@
 
       regEmailSend.disabled = true;
       regEmailSend.textContent = 'Проверяем…';
+      const hasMx = await emailDomainHasMx(email);
+      if (hasMx === false) {
+        regEmailSend.disabled = false;
+        regEmailSend.textContent = sbOn ? 'Получить код' : 'Подтвердить почту';
+        regEmailError.style.color = '';
+        regEmailError.textContent = 'Такой почты не существует';
+        return;
+      }
       const taken = await emailTaken(email);
       if (taken) {
         regEmailSend.disabled = false;
