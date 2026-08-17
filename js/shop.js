@@ -503,13 +503,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       const u = currentUser();
       if (u) {
         u.balanceRub = Number(res.balance) || ((Number(u.balanceRub) || 0) - b.total);
-        if (!Array.isArray(u.privileges)) u.privileges = [];
-        u.privileges.push({
-          name: b.priv.name,
-          server: selected,
-          purchaseDate: new Date().toLocaleDateString('ru-RU'),
-          expiresAt: b.forever ? null : Date.now() + b.months * 30 * 24 * 60 * 60 * 1000,
-        });
+        // RPC возвращает актуальный список привилегий (с продлением срока);
+        // если старого RPC — локальный фолбэк с той же логикой продления.
+        if (Array.isArray(res.privileges)) {
+          u.privileges = res.privileges;
+        } else {
+          if (!Array.isArray(u.privileges)) u.privileges = [];
+          const nowMs = Date.now();
+          const active = u.privileges.find(x => String(x.name) === String(b.priv.name)
+            && (String(x.server) === selected || x.server == null || String(x.server) === '—')
+            && (x.expiresAt == null || Number(x.expiresAt) > nowMs));
+          if (active) {
+            if (b.forever || active.expiresAt == null) active.expiresAt = null;
+            else active.expiresAt = Math.max(Number(active.expiresAt), nowMs) + b.months * 30 * 24 * 60 * 60 * 1000;
+            active.purchaseDate = new Date().toLocaleDateString('ru-RU');
+          } else {
+            u.privileges.push({
+              name: b.priv.name,
+              server: selected,
+              purchaseDate: new Date().toLocaleDateString('ru-RU'),
+              expiresAt: b.forever ? null : nowMs + b.months * 30 * 24 * 60 * 60 * 1000,
+            });
+          }
+        }
         if (!Array.isArray(u.transactions)) u.transactions = [];
         u.transactions.unshift({
           type: 'out', title: 'Покупка: ' + b.priv.name, server: selected,
@@ -533,7 +549,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDetail();
   }
 
-  // Покупка без облака (localStorage): имитация в mc:auth
+  // Покупка без облака (localStorage): имитация в mc:auth.
+  // Повторная покупка продлевает срок активной записи (бессрочную не трогаем).
   function buyLocal(b, user) {
     try {
       const data = JSON.parse(localStorage.getItem('mc:auth') || '{"users":[],"session":null}');
@@ -542,11 +559,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       if ((Number(u.balanceRub) || 0) < b.total) return { ok: false, error: 'Недостаточно средств' };
       u.balanceRub = (Number(u.balanceRub) || 0) - b.total;
       if (!Array.isArray(u.privileges)) u.privileges = [];
-      u.privileges.push({
-        name: b.priv.name, server: selected,
-        purchaseDate: new Date().toLocaleDateString('ru-RU'),
-        expiresAt: b.forever ? null : Date.now() + b.months * 30 * 24 * 60 * 60 * 1000,
-      });
+      const nowMs = Date.now();
+      const active = u.privileges.find(x => String(x.name) === String(b.priv.name)
+        && (String(x.server) === selected || x.server == null || String(x.server) === '—')
+        && (x.expiresAt == null || Number(x.expiresAt) > nowMs));
+      if (active) {
+        // Продление срока: от конца текущего срока (или от сейчас), если запись не бессрочная
+        if (b.forever || active.expiresAt == null) active.expiresAt = null;
+        else active.expiresAt = Math.max(Number(active.expiresAt), nowMs) + b.months * 30 * 24 * 60 * 60 * 1000;
+        active.purchaseDate = new Date().toLocaleDateString('ru-RU');
+      } else {
+        u.privileges.push({
+          name: b.priv.name, server: selected,
+          purchaseDate: new Date().toLocaleDateString('ru-RU'),
+          expiresAt: b.forever ? null : nowMs + b.months * 30 * 24 * 60 * 60 * 1000,
+        });
+      }
       if (!Array.isArray(u.transactions)) u.transactions = [];
       u.transactions.unshift({
         type: 'out', title: 'Покупка: ' + b.priv.name, server: selected,

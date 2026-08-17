@@ -678,12 +678,41 @@ begin
   select coalesce(privileges, '[]'::jsonb) into cur_privs from public.profiles where id = me;
   select coalesce(transactions, '[]'::jsonb) into cur_trans from public.profiles where id = me;
 
-  cur_privs := cur_privs || jsonb_build_object(
-    'name', priv.name,
-    'server', srv,
-    'purchaseDate', to_char(now(), 'DD.MM.YYYY'),
-    'expiresAt', exp_at
-  );
+  -- Продление: если уже есть активная запись (привилегия + сервер) —
+  -- продлеваем её срок вместо добавления новой. Активная = бессрочная
+  -- (expiresAt null) или ещё не истекла. Бессрочную запись не трогаем.
+  if exists (
+    select 1 from jsonb_array_elements(cur_privs) v
+     where v->>'name' = priv.name
+       and coalesce(v->>'server', '—') = srv
+       and (v->>'expiresAt' is null
+            or (v->>'expiresAt')::bigint > (extract(epoch from now()) * 1000)::bigint)
+  ) then
+    select jsonb_agg(
+      case when v->>'name' = priv.name
+                and coalesce(v->>'server', '—') = srv
+                and (v->>'expiresAt' is null
+                     or (v->>'expiresAt')::bigint > (extract(epoch from now()) * 1000)::bigint)
+           then jsonb_build_object(
+                  'name', priv.name,
+                  'server', srv,
+                  'purchaseDate', to_char(now(), 'DD.MM.YYYY'),
+                  'expiresAt', case
+                    when p_forever or v->>'expiresAt' is null then null
+                    else greatest((v->>'expiresAt')::bigint, (extract(epoch from now()) * 1000)::bigint)
+                         + (months * 30 * 24 * 60 * 60 * 1000)::bigint
+                  end)
+           else v end)
+      into cur_privs
+    from jsonb_array_elements(cur_privs) v;
+  else
+    cur_privs := cur_privs || jsonb_build_object(
+      'name', priv.name,
+      'server', srv,
+      'purchaseDate', to_char(now(), 'DD.MM.YYYY'),
+      'expiresAt', exp_at
+    );
+  end if;
 
   cur_trans := jsonb_build_array(jsonb_build_object(
     'type', 'out',
@@ -706,7 +735,7 @@ begin
             case when p_forever then ' навсегда' else ' на ' || months || ' мес.' end,
           'shop.html');
 
-  return jsonb_build_object('ok', true, 'balance', rub - price);
+  return jsonb_build_object('ok', true, 'balance', rub - price, 'privileges', cur_privs);
 end;
 $$;
 grant execute on function public.purchase_privilege(bigint, integer, text, boolean) to authenticated;
